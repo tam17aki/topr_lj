@@ -1,4 +1,4 @@
-# Two-stage Online/Offline Phase Reconstruction (TOPR) on The LJ Speech Dataset
+# Two-stage Online/Offline Phase Reconstruction (TOPR) on the LJ Speech Dataset
 
 This repository provides an unofficial implementation of "Online Phase Reconstruction via DNN-based Phase Differences Estimation" [1]. We have designed the scripts so that all experiments are conducted on the LJ speech dataset.
 
