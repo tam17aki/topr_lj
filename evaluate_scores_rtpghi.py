@@ -86,7 +86,7 @@ def compute_pesq(cfg, wav_path):
         eval_wav = eval_wav[: len(reference)]
     else:
         reference = reference[: len(eval_wav)]
-    return pesq(16000, reference, eval_wav, cfg.demo.pesq_band)
+    return pesq(16000, reference, eval_wav)
 
 
 def compute_stoi(cfg, wav_path):
