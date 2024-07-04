@@ -20,6 +20,7 @@ We tested the implemention on Ubuntu 22.04. The verion of Python was `3.10.12`. 
 - pystoi
 - scikit-learn
 - soundfile
+- timm
 - torch
 
 Optionally, if you want to compare the offline version with other offline methods such as RTISI, PGHI, and SPSI, you are required to install Octave in advance. In this case, you also need to install LTFAT and PHASERET packages to compute these offline methods. Finally, the "oct2py" Python package must be installed.
