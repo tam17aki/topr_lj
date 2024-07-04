@@ -146,10 +146,9 @@ def save_checkpoint(modules: TrainingModules, mode: str) -> None:
     model = modules.model
     model_dir = os.path.join(path_cfg.root_dir, "model")
     os.makedirs(model_dir, exist_ok=True)
-    model_file = ""
     if mode == "bpd":
         model_file = os.path.join(model_dir, path_cfg.model_file + ".bpd.pth")
-    elif mode == "fpd":
+    else:
         model_file = os.path.join(model_dir, path_cfg.model_file + ".fpd.pth")
     torch.save(model.state_dict(), f=model_file)
 
