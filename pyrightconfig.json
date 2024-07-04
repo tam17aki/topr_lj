@@ -1,0 +1,6 @@
+{
+    // "reportUnknownVariableType" : "none",
+    // "reportUnknownMemberType" : "none",
+    // "reportImplicitOverride": "none",
+    "reportAttributeAccessIssue": "none",
+}

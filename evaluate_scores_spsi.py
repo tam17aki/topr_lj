@@ -27,55 +27,54 @@ import os
 import librosa
 import numpy as np
 import soundfile as sf
-from hydra import compose, initialize
 from oct2py import octave
-from omegaconf import DictConfig
 from pesq import pesq
 from progressbar import progressbar as prg
 from pystoi import stoi
 from scipy import signal
 
+from config import EvalConfig, FeatureConfig, PathConfig
 
-def get_wavdir(cfg):
+
+def get_wavdir() -> str:
     """Return dirname of wavefile to be evaluated.
 
     Args:
-        cfg (DictConfig): configuration.
+        None.
 
     Returns:
         wav_dir (str): dirname of wavefile.
     """
-    wav_dir = os.path.join(cfg.TOPR.root_dir, cfg.TOPR.demo_dir, "online", "SPSI")
+    path_cfg = PathConfig()
+    wav_dir = os.path.join(path_cfg.root_dir, path_cfg.demo_dir, "online", "SPSI")
     return wav_dir
 
 
-def get_wavname(cfg, basename):
+def get_wavname(basename: str) -> str:
     """Return filename of wavefile to be evaluated.
 
     Args:
-        cfg (DictConfig): configuration.
         basename (str): basename of wavefile for evaluation.
 
     Returns:
         wav_file (str): filename of wavefile.
     """
     wav_name, _ = os.path.splitext(basename)
-    wav_dir = get_wavdir(cfg)
+    wav_dir = get_wavdir()
     wav_file = os.path.join(wav_dir, wav_name + ".wav")
     return wav_file
 
 
-def compute_pesq(cfg, wav_path):
+def compute_pesq(wav_path: str) -> float:
     """Compute PESQ and wideband PESQ.
 
     Args:
-        cfg (DictConfig): configuration.
         wav_path (str): pathname of wavefile for evaluation.
 
     Returns:
         float: PESQ (or wideband PESQ).
     """
-    eval_wav, rate = sf.read(get_wavname(cfg, os.path.basename(wav_path)))
+    eval_wav, rate = sf.read(get_wavname(os.path.basename(wav_path)))
     eval_wav = librosa.resample(eval_wav, orig_sr=rate, target_sr=16000)
     reference, rate = sf.read(wav_path)
     reference = librosa.resample(reference, orig_sr=rate, target_sr=16000)
@@ -86,17 +85,17 @@ def compute_pesq(cfg, wav_path):
     return pesq(16000, reference, eval_wav)
 
 
-def compute_stoi(cfg, wav_path):
+def compute_stoi(wav_path: str) -> float:
     """Compute STOI or extended STOI (ESTOI).
 
     Args:
-        cfg (DictConfig): configuration.
         wav_path (str): pathname of wavefile for evaluation.
 
     Returns:
         float: STOI (or ESTOI).
     """
-    eval_wav, rate = sf.read(get_wavname(cfg, os.path.basename(wav_path)))
+    eval_cfg = EvalConfig()
+    eval_wav, rate = sf.read(get_wavname(os.path.basename(wav_path)))
     eval_wav = librosa.resample(eval_wav, orig_sr=rate, target_sr=16000)
     reference, rate = sf.read(wav_path)
     reference = librosa.resample(reference, orig_sr=rate, target_sr=16000)
@@ -104,20 +103,20 @@ def compute_stoi(cfg, wav_path):
         eval_wav = eval_wav[: len(reference)]
     else:
         reference = reference[: len(eval_wav)]
-    return stoi(reference, eval_wav, rate, extended=cfg.demo.stoi_extended)
+    return stoi(reference, eval_wav, rate, extended=eval_cfg.stoi_extended)
 
 
-def compute_lsc(cfg, wav_path):
+def compute_lsc(wav_path: str) -> np.float64:
     """Compute log-spectral convergence (LSC).
 
     Args:
-        cfg (DictConfig): configuration.
         wav_path (str): pathname of wavefile for evaluation.
 
     Returns:
         float: log-spectral convergence.
     """
-    eval_wav, rate = sf.read(get_wavname(cfg, os.path.basename(wav_path)))
+    feat_cfg = FeatureConfig()
+    eval_wav, rate = sf.read(get_wavname(os.path.basename(wav_path)))
     eval_wav = librosa.resample(eval_wav, orig_sr=rate, target_sr=16000)
     reference, rate = sf.read(wav_path)
     reference = librosa.resample(reference, orig_sr=rate, target_sr=16000)
@@ -126,10 +125,10 @@ def compute_lsc(cfg, wav_path):
     else:
         reference = reference[: len(eval_wav)]
     stfft = signal.ShortTimeFFT(
-        win=signal.get_window(cfg.feature.window, cfg.feature.win_length),
-        hop=cfg.feature.hop_length,
+        win=signal.get_window(feat_cfg.window, feat_cfg.win_length),
+        hop=feat_cfg.hop_length,
         fs=rate,
-        mfft=cfg.feature.n_fft,
+        mfft=feat_cfg.n_fft,
     )
     ref_abs = np.abs(stfft.stft(reference))
     eval_abs = np.abs(stfft.stft(eval_wav))
@@ -139,7 +138,7 @@ def compute_lsc(cfg, wav_path):
     return lsc
 
 
-def reconst_waveform(cfg, wav_list):
+def reconst_waveform(wav_list: list[str]) -> None:
     """Reconstruct audio waveform only from the magnitude spectrum.
 
     Args:
@@ -149,30 +148,28 @@ def reconst_waveform(cfg, wav_list):
     Returns:
         None.
     """
+    feat_cfg = FeatureConfig()
     for wav_path in prg(
         wav_list, prefix="Reconstruct waveform: ", suffix=" ", redirect_stdout=False
     ):
         audio, _ = sf.read(wav_path)
         stfft = signal.ShortTimeFFT(
-            win=signal.get_window(cfg.feature.window, cfg.feature.win_length),
-            hop=cfg.feature.hop_length,
-            fs=cfg.feature.sample_rate,
-            mfft=cfg.feature.n_fft,
+            win=signal.get_window(feat_cfg.window, feat_cfg.win_length),
+            hop=feat_cfg.hop_length,
+            fs=feat_cfg.sample_rate,
+            mfft=feat_cfg.n_fft,
         )
         magnitude = np.abs(stfft.stft(audio))
-        reconst_spec = octave.spsi(
-            magnitude, cfg.feature.hop_length, cfg.feature.win_length
-        )
+        reconst_spec = octave.spsi(magnitude, feat_cfg.hop_length, feat_cfg.win_length)
         audio = stfft.istft(reconst_spec)
-        wav_file = get_wavname(cfg, os.path.basename(wav_path))
-        sf.write(wav_file, audio, cfg.feature.sample_rate)
+        wav_file = get_wavname(os.path.basename(wav_path))
+        sf.write(wav_file, audio, feat_cfg.sample_rate)
 
 
-def compute_obj_scores(cfg, wav_list):
+def compute_obj_scores(wav_list: list[str]) -> dict[str, list[float]]:
     """Compute objective evaluation scores; PESQ, STOI and LSC.
 
     Args:
-        cfg (DictConfig): configuration.
         wav_list (list): list of path to wav file.
 
     Returns:
@@ -182,13 +179,13 @@ def compute_obj_scores(cfg, wav_list):
     for wav_path in prg(
         wav_list, prefix="Compute objective scores: ", suffix=" ", redirect_stdout=False
     ):
-        score_dict["pesq"].append(compute_pesq(cfg, wav_path))
-        score_dict["stoi"].append(compute_stoi(cfg, wav_path))
-        score_dict["lsc"].append(compute_lsc(cfg, wav_path))
+        score_dict["pesq"].append(compute_pesq(wav_path))
+        score_dict["stoi"].append(compute_stoi(wav_path))
+        score_dict["lsc"].append(compute_lsc(wav_path))
     return score_dict
 
 
-def aggregate_scores(score_dict, score_dir):
+def aggregate_scores(score_dict: dict[str, list[float]], score_dir: str) -> None:
     """Aggregate objective evaluation scores.
 
     Args:
@@ -215,36 +212,35 @@ def aggregate_scores(score_dict, score_dir):
         )
 
 
-def main(cfg: DictConfig):
+def main() -> None:
     """Perform evaluation."""
     # initialization for octave
-    octave.addpath(octave.genpath(config.TOPR.ltfat_dir))
+    path_cfg = PathConfig()
+    octave.addpath(octave.genpath(path_cfg.ltfat_dir))
     octave.ltfatstart(0)
     octave.phaseretstart(0)
 
     # setup directory
-    wav_dir = get_wavdir(cfg)  # dirname for reconstructed wav files
+    wav_dir = get_wavdir()  # dirname for reconstructed wav files
     os.makedirs(wav_dir, exist_ok=True)
-    score_dir = os.path.join(cfg.TOPR.root_dir, cfg.TOPR.score_dir)
+    score_dir = os.path.join(path_cfg.root_dir, path_cfg.score_dir)
     os.makedirs(score_dir, exist_ok=True)
 
     # reconstruct phase and waveform
     with open(
-        os.path.join(cfg.TOPR.root_dir, cfg.TOPR.list_dir, "eval.list"),
+        os.path.join(path_cfg.root_dir, path_cfg.list_dir, "eval.list"),
         "r",
         encoding="utf-8",
     ) as file_handler:
         wav_list = file_handler.read().splitlines()
-    reconst_waveform(cfg, wav_list)
+    reconst_waveform(wav_list)
 
     # compute objective scores
-    score_dict = compute_obj_scores(cfg, wav_list)
+    score_dict = compute_obj_scores(wav_list)
 
     # aggregate objective scores
     aggregate_scores(score_dict, score_dir)
 
 
 if __name__ == "__main__":
-    with initialize(version_base=None, config_path="."):
-        config = compose(config_name="config")
-    main(config)
+    main()

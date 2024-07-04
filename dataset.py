@@ -22,23 +22,36 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 """
 
-import functools
 import os
+from dataclasses import dataclass
 
 import numpy as np
+import numpy.typing as npt
 import torch
 from torch.utils.data import DataLoader, Dataset
 
+from config import ModelConfig, PathConfig, TrainingConfig
 
-class TOPRDataset(Dataset):
+
+@dataclass
+class FeatPath:
+    """Paths for features."""
+
+    logmag: list[str]
+    phase: list[str]
+
+
+class TOPRDataset(Dataset[tuple[npt.NDArray[np.float32], npt.NDArray[np.float32]]]):
     """Dataset for TOPR."""
 
-    def __init__(self, feat_paths):
+    def __init__(self, feat_paths: FeatPath) -> None:
         """Initialize class."""
-        self.logmag_paths = feat_paths["logmag"]
-        self.phase_paths = feat_paths["phase"]
+        self.logmag_paths = feat_paths.logmag
+        self.phase_paths = feat_paths.phase
 
-    def __getitem__(self, idx):
+    def __getitem__(
+        self, idx: int
+    ) -> tuple[npt.NDArray[np.float32], npt.NDArray[np.float32]]:
         """Get a pair of input and target.
 
         Args:
@@ -49,7 +62,7 @@ class TOPRDataset(Dataset):
         """
         return (np.load(self.logmag_paths[idx]), np.load(self.phase_paths[idx]))
 
-    def __len__(self):
+    def __len__(self) -> int:
         """Return the size of the dataset.
 
         Returns:
@@ -58,7 +71,9 @@ class TOPRDataset(Dataset):
         return len(self.logmag_paths)
 
 
-def collate_fn_topr(batch, cfg):
+def collate_fn_topr(
+    batch: list[npt.NDArray[np.float32]],
+) -> tuple[torch.Tensor, torch.Tensor]:
     """Collate function for TOPR.
 
     Args:
@@ -68,27 +83,24 @@ def collate_fn_topr(batch, cfg):
     Returns:
         tuple: a batch of inputs and targets.
     """
-    batch_feats = {"logmag": None, "phase": None}
-    for j, feat in enumerate(batch_feats.keys()):
-        batch_temp = [x[j] for x in batch]
-        batch_feats[feat] = torch.from_numpy(np.array(batch_temp))
-        if feat == "logmag":
-            batch_feats[feat] = batch_feats[feat].unfold(
-                1, cfg.model.n_lookback + cfg.model.n_lookahead + 1, 1
-            )
-            _, _, n_fbin, width = batch_feats[feat].shape
-            batch_feats[feat] = batch_feats[feat].reshape(-1, n_fbin, width)
-            batch_feats[feat] = batch_feats[feat].transpose(2, 1)
-        else:
-            _, n_frame, _ = batch_feats[feat].shape
-            batch_feats[feat] = batch_feats[feat][
-                :, cfg.model.n_lookback : n_frame - cfg.model.n_lookahead, :
-            ]
+    cfg = ModelConfig()
+    batch_temp = [x[0] for x in batch]
+    logmag_feats = torch.tensor(np.array(batch_temp).astype(np.float32))
+    logmag_feats = logmag_feats.unfold(1, cfg.n_lookback + cfg.n_lookahead + 1, 1)
+    _, _, n_fbin, width = logmag_feats.shape
+    logmag_feats = logmag_feats.reshape(-1, n_fbin, width)
+    logmag_feats = logmag_feats.transpose(2, 1)
 
-    return (batch_feats["logmag"], batch_feats["phase"])
+    batch_temp = [x[1] for x in batch]
+    phase_feats = torch.tensor(np.array(batch_temp).astype(np.float32))
+    _, n_frame, _ = phase_feats.shape
+    phase_feats = phase_feats[:, cfg.n_lookback : n_frame - cfg.n_lookahead, :]
+    return (logmag_feats, phase_feats)
 
 
-def get_dataloader(cfg):
+def get_dataloader() -> (
+    DataLoader[tuple[npt.NDArray[np.float32], npt.NDArray[np.float32]]]
+):
     """Get data loaders for training and validation.
 
     Args:
@@ -97,27 +109,32 @@ def get_dataloader(cfg):
     Returns:
         dict: Data loaders.
     """
+    train_cfg = TrainingConfig()
+    path_cfg = PathConfig()
     wav_list = os.listdir(
-        os.path.join(cfg.TOPR.root_dir, cfg.TOPR.data_dir, cfg.TOPR.split_dir)
+        os.path.join(path_cfg.root_dir, path_cfg.data_dir, path_cfg.split_dir)
     )
     utt_list = [
         os.path.splitext(os.path.basename(wav_file))[0] for wav_file in wav_list
     ]
     utt_list.sort()
 
-    feat_dir = os.path.join(cfg.TOPR.root_dir, cfg.TOPR.feat_dir, cfg.TOPR.trainset_dir)
-    feat_paths = {"logmag": None, "phase": None}
-    for feat in feat_paths:
-        feat_paths[feat] = [
-            os.path.join(feat_dir, f"{utt_id}-feats_{feat}.npy") for utt_id in utt_list
-        ]
+    feat_dir = os.path.join(path_cfg.root_dir, path_cfg.feat_dir, "train")
+    feat_paths = FeatPath(
+        logmag=[
+            os.path.join(feat_dir, f"{utt_id}-feats_logmag.npy") for utt_id in utt_list
+        ],
+        phase=[
+            os.path.join(feat_dir, f"{utt_id}-feats_phase.npy") for utt_id in utt_list
+        ],
+    )
 
     data_loaders = DataLoader(
         TOPRDataset(feat_paths),
-        batch_size=cfg.training.n_batch,
-        collate_fn=functools.partial(collate_fn_topr, cfg=cfg),
+        batch_size=train_cfg.n_batch,
+        collate_fn=collate_fn_topr,
         pin_memory=True,
-        num_workers=cfg.training.num_workers,
+        num_workers=train_cfg.num_workers,
         shuffle=True,
         drop_last=True,
     )

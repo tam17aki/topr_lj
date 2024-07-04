@@ -28,10 +28,9 @@ from concurrent.futures import ProcessPoolExecutor
 
 import librosa
 import numpy as np
+import numpy.typing as npt
 import soundfile as sf
 import torch
-from hydra import compose, initialize
-from omegaconf import DictConfig
 from pesq import pesq
 from progressbar import progressbar as prg
 from pystoi import stoi
@@ -40,53 +39,62 @@ from scipy.sparse import csr_array, diags_array
 from scipy.sparse.linalg import spsolve
 from torch.multiprocessing import set_start_method
 
-from model import get_model
+from config import (
+    EvalConfig,
+    FeatureConfig,
+    ModelConfig,
+    PathConfig,
+    PreProcessConfig,
+)
+from model import TOPRNet
 
 
-def load_checkpoint(cfg: DictConfig):
+def load_checkpoint() -> tuple[TOPRNet, TOPRNet]:
     """Load checkpoint.
 
     Args:
-        cfg (DictConfig): configuration.
+        None.
 
     Returns:
         model_bpd (nn.Module): DNNs to estimate BPD.
         model_fpd (nn.Module): DNNs to estimate FPD.
     """
-    model_dir = os.path.join(cfg.TOPR.root_dir, cfg.TOPR.model_dir)
-    model_bpd = get_model(cfg)
-    model_file = os.path.join(model_dir, cfg.training.model_file + ".bpd.pth")
+    path_cfg = PathConfig()
+    model_dir = os.path.join(path_cfg.root_dir, "model")
+    model_bpd = TOPRNet().cuda()
+    model_file = os.path.join(model_dir, path_cfg.model_file + ".bpd.pth")
     checkpoint = torch.load(model_file)
     model_bpd.load_state_dict(checkpoint)
 
-    model_fpd = get_model(cfg)
-    model_file = os.path.join(model_dir, cfg.training.model_file + ".fpd.pth")
+    model_fpd = TOPRNet().cuda()
+    model_file = os.path.join(model_dir, path_cfg.model_file + ".fpd.pth")
     checkpoint = torch.load(model_file)
     model_fpd.load_state_dict(checkpoint)
     return model_bpd, model_fpd
 
 
-def get_wavdir(cfg):
+def get_wavdir() -> str:
     """Return dirname of wavefile to be evaluated.
 
     Args:
-        cfg (DictConfig): configuration.
+        None.
 
     Returns:
         wav_dir (str): dirname of wavefile.
     """
-    if cfg.model.n_lookahead == 0:
-        wav_dir = os.path.join(cfg.TOPR.root_dir, cfg.TOPR.demo_dir, "online", "TOPR")
+    path_cfg = PathConfig()
+    model_cfg = ModelConfig()
+    if model_cfg.n_lookahead == 0:
+        wav_dir = os.path.join(path_cfg.root_dir, path_cfg.demo_dir, "online", "TOPR")
     else:
-        wav_dir = os.path.join(cfg.TOPR.root_dir, cfg.TOPR.demo_dir, "offline", "TOPR")
+        wav_dir = os.path.join(path_cfg.root_dir, path_cfg.demo_dir, "offline", "TOPR")
     return wav_dir
 
 
-def get_wavname(cfg, basename):
+def get_wavname(basename: str) -> str:
     """Return filename of wavefile to be evaluated.
 
     Args:
-        cfg (DictConfig): configuration.
         basename (str): basename of wavefile for evaluation.
 
     Returns:
@@ -94,26 +102,26 @@ def get_wavname(cfg, basename):
     """
     wav_name, _ = os.path.splitext(basename)
     wav_name = wav_name.split("_")[0][:-6]
-    wav_dir = get_wavdir(cfg)
+    wav_dir = get_wavdir()
     wav_file = os.path.join(wav_dir, wav_name + ".wav")
     return wav_file
 
 
-def compute_pesq(cfg, basename):
+def compute_pesq(basename: str) -> float:
     """Compute PESQ and wideband PESQ.
 
     Args:
-        cfg (DictConfig): configuration.
         basename (str): basename of wavefile for evaluation.
 
     Returns:
         float: PESQ (or wideband PESQ).
     """
-    eval_wav, rate = sf.read(get_wavname(cfg, basename))
+    cfg = PathConfig()
+    eval_wav, rate = sf.read(get_wavname(basename))
     eval_wav = librosa.resample(eval_wav, orig_sr=rate, target_sr=16000)
     ref_wavname, _ = os.path.splitext(basename)
     ref_wavname = ref_wavname.split("_")[0][:-6]
-    wav_dir = os.path.join(cfg.TOPR.root_dir, cfg.TOPR.data_dir, "orig")
+    wav_dir = os.path.join(cfg.root_dir, cfg.data_dir, "orig")
     reference, rate = sf.read(os.path.join(wav_dir, ref_wavname + ".wav"))
     reference = librosa.resample(reference, orig_sr=rate, target_sr=16000)
     if len(eval_wav) > len(reference):
@@ -123,52 +131,54 @@ def compute_pesq(cfg, basename):
     return pesq(16000, reference, eval_wav)
 
 
-def compute_stoi(cfg, basename):
+def compute_stoi(basename: str) -> float:
     """Compute STOI or extended STOI (ESTOI).
 
     Args:
-        cfg (DictConfig): configuration.
         basename (str): basename of wavefile for evaluation.
 
     Returns:
         float: STOI (or ESTOI).
     """
-    eval_wav, _ = sf.read(get_wavname(cfg, basename))
+    cfg = PathConfig()
+    eval_cfg = EvalConfig()
+    eval_wav, _ = sf.read(get_wavname(basename))
     ref_wavname, _ = os.path.splitext(basename)
     ref_wavname = ref_wavname.split("_")[0][:-6]
-    wav_dir = os.path.join(cfg.TOPR.root_dir, cfg.TOPR.data_dir, "orig")
+    wav_dir = os.path.join(cfg.root_dir, cfg.data_dir, "orig")
     reference, rate = sf.read(os.path.join(wav_dir, ref_wavname + ".wav"))
     if len(eval_wav) > len(reference):
         eval_wav = eval_wav[: len(reference)]
     else:
         reference = reference[: len(eval_wav)]
-    return stoi(reference, eval_wav, rate, extended=cfg.demo.stoi_extended)
+    return stoi(reference, eval_wav, rate, extended=eval_cfg.stoi_extended)
 
 
-def compute_lsc(cfg, basename):
+def compute_lsc(basename: str) -> np.float64:
     """Compute log-spectral convergence (LSC).
 
     Args:
-        cfg (DictConfig): configuration.
         basename (str): basename of wavefile for evaluation.
 
     Returns:
-        float: log-spectral convergence.
+        lsc (float64): log-spectral convergence.
     """
-    eval_wav, _ = sf.read(get_wavname(cfg, basename))
+    path_cfg = PathConfig()
+    feat_cfg = FeatureConfig()
+    eval_wav, _ = sf.read(get_wavname(basename))
     ref_wavname, _ = os.path.splitext(basename)
     ref_wavname = ref_wavname.split("_")[0][:-6]
-    wav_dir = os.path.join(cfg.TOPR.root_dir, cfg.TOPR.data_dir, "orig")
+    wav_dir = os.path.join(path_cfg.root_dir, path_cfg.data_dir, "orig")
     reference, rate = sf.read(os.path.join(wav_dir, ref_wavname + ".wav"))
     if len(eval_wav) > len(reference):
         eval_wav = eval_wav[: len(reference)]
     else:
         reference = reference[: len(eval_wav)]
     stfft = signal.ShortTimeFFT(
-        win=signal.get_window(cfg.feature.window, cfg.feature.win_length),
-        hop=cfg.feature.hop_length,
+        win=signal.get_window(feat_cfg.window, feat_cfg.win_length),
+        hop=feat_cfg.hop_length,
         fs=rate,
-        mfft=cfg.feature.n_fft,
+        mfft=feat_cfg.n_fft,
     )
     ref_abs = np.abs(stfft.stft(reference))
     eval_abs = np.abs(stfft.stft(eval_wav))
@@ -178,7 +188,9 @@ def compute_lsc(cfg, basename):
     return lsc
 
 
-def bpd2tpd(bpd, win_len, hop_len):
+def bpd2tpd(
+    bpd: npt.NDArray[np.float32], win_len: int, hop_len: int
+) -> npt.NDArray[np.float32]:
     """Convert BPD to TPD.
 
     Args:
@@ -196,11 +208,12 @@ def bpd2tpd(bpd, win_len, hop_len):
 
 
 @torch.no_grad()
-def compute_1st_stage(cfg, model_tuple, logmag):
+def compute_1st_stage(
+    model_tuple: tuple[TOPRNet, TOPRNet], logmag: torch.Tensor
+) -> tuple[npt.NDArray[np.float32], npt.NDArray[np.float32]]:
     """Estimate TPD and FPD from log-magnitude spectra.
 
     Args:
-        cfg (DictConfig): configuration.
         model_tuple (tuple): tuple of DNN params (nn.Module).
         logmag (ndarray): log magnitude spectrum. [1, L, K]
 
@@ -208,21 +221,26 @@ def compute_1st_stage(cfg, model_tuple, logmag):
         tpd (ndarray): TPD. [K]
         fpd (ndarray): FPD. [K-1]
     """
+    cfg = FeatureConfig()
     model_bpd, model_fpd = model_tuple  # DNNs
     bpd = model_bpd(logmag)  # [1, 1, K]
     fpd = model_fpd(logmag)  # [1, 1, K]
     bpd = bpd.cpu().detach().numpy().copy().squeeze()
     fpd = fpd.cpu().detach().numpy().copy().squeeze()
     fpd = fpd[:-1]
-    tpd = bpd2tpd(bpd, cfg.feature.win_length, cfg.feature.hop_length)
+    tpd = bpd2tpd(bpd, cfg.win_length, cfg.hop_length)
     return tpd, fpd
 
 
-def compute_2nd_stage(cfg, phase_prev, pd_tuple, mag_cur, mag_prev):
+def compute_2nd_stage(
+    phase_prev: npt.NDArray[np.float32],
+    pd_tuple: tuple[npt.NDArray[np.float32], npt.NDArray[np.float32]],
+    mag_cur: npt.NDArray[np.float32],
+    mag_prev: npt.NDArray[np.float32],
+) -> npt.NDArray[np.float32]:
     """Reconstruct phase spectrum.
 
     Args:
-        cfg (DictConfig): configuration.
         phase_prev (ndarray): phase spectrum at the previous frame. [K]
         pd_tuple (Tuple): tuple of TPD and FPD (ndarray).
         mag_cur (ndarray): magnitude spectrum at the current frame. [K]
@@ -231,7 +249,7 @@ def compute_2nd_stage(cfg, phase_prev, pd_tuple, mag_cur, mag_prev):
     Returns:
         phase (ndarray): reconstructed phase spectrum at the current frame. [K]
     """
-    var = {"coef": None, "rhs": None, "sol": None}
+    cfg = EvalConfig()
     tpd, fpd = pd_tuple
     n_fbin = mag_cur.shape[0]
 
@@ -240,10 +258,8 @@ def compute_2nd_stage(cfg, phase_prev, pd_tuple, mag_cur, mag_prev):
     ratio_u = ratio_u * np.exp(1j * fpd)  # [K-1]  Eqs. (37) and (41)
 
     # weight matrix (diagonal)
-    lambda_vec = (mag_cur * mag_prev) ** cfg.demo.weight_power
-    gamma_mat = cfg.demo.weight_gamma * (
-        (mag_cur[1:] * mag_cur[:-1]) ** cfg.demo.weight_power
-    )
+    lambda_vec = (mag_cur * mag_prev) ** cfg.weight_power
+    gamma_mat = cfg.weight_gamma * ((mag_cur[1:] * mag_cur[:-1]) ** cfg.weight_power)
     gamma_mat = diags_array(gamma_mat, format="csr")
     lambda_mat = diags_array(lambda_vec, format="csr")
 
@@ -258,14 +274,16 @@ def compute_2nd_stage(cfg, phase_prev, pd_tuple, mag_cur, mag_prev):
         shape=(n_fbin - 1, n_fbin),
         dtype=np.complex64,
     )  # Eqs. (44) and (45)
-    var["coef"] = lambda_mat + d_mat.T.tocsr() @ gamma_mat @ d_mat
-    var["rhs"] = lambda_vec * mag_cur * np.exp(1j * (phase_prev + tpd))
-    var["sol"] = spsolve(var["coef"], var["rhs"])
-    phase = np.angle(var["sol"])  # Eq. (46)
-    return phase
+    coef = lambda_mat + d_mat.T.tocsr() @ gamma_mat @ d_mat
+    rhs = lambda_vec * mag_cur * np.exp(1j * (phase_prev + tpd))
+    return np.angle(spsolve(coef, rhs))
 
 
-def reconst_phase(cfg, model_tuple, logmag, magnitude):
+def reconst_phase(
+    model_tuple: tuple[TOPRNet, TOPRNet],
+    logmag: npt.NDArray[np.float32],
+    magnitude: npt.NDArray[np.float32],
+) -> npt.NDArray[np.float32]:
     """Reconstruct phase spectrum by TOPR algorithm.
 
     Y. Masuyama, K. Yatabe, K. Nagatomo and Y. Oikawa,
@@ -274,79 +292,81 @@ def reconst_phase(cfg, model_tuple, logmag, magnitude):
     vol. 31, pp. 163-176, 2023, doi: 10.1109/TASLP.2022.3221041.
 
     Args:
-        cfg (DictConfig): configuration.
         model_tuple (Tuple): tuple of DNNs (nn.Module).
-        logmag (Tensor): log-magnitude spectrum (zero padded). [T, K]
-        magnitude (Tensor): magnitude spectrum. [T, K]
+        logmag (ndarray): log-magnitude spectrum (zero padded). [T, K]
+        magnitude (ndarray): magnitude spectrum. [T, K]
 
     Returns:
         phase (ndarray): reconstruced phase. [T, K]
     """
-    logmag = np.pad(
-        logmag, ((cfg.model.n_lookback, cfg.model.n_lookahead), (0, 0)), "constant"
-    )
-    logmag = torch.from_numpy(logmag).float().unsqueeze(0).cuda()  # [1, T+L+1, K]
+    cfg = ModelConfig()
+    logmag = np.pad(logmag, ((cfg.n_lookback, cfg.n_lookahead), (0, 0)), "constant")
+    logmag_tensor = (
+        torch.from_numpy(logmag).float().unsqueeze(0).cuda()
+    )  # [1, T+L+1, K]
     n_frame, n_fbin = magnitude.shape
-    n_lookback = cfg.model.n_lookback
-    n_lookahead = cfg.model.n_lookahead
+    n_lookback = cfg.n_lookback
+    n_lookahead = cfg.n_lookahead
 
-    phase = np.zeros((n_frame, n_fbin))  # [T, K]
+    phase = np.zeros((n_frame, n_fbin)).astype(np.float32)  # [T, K]
     _, fpd = compute_1st_stage(
-        cfg, model_tuple, logmag[:, : n_lookback + n_lookahead + 1, :]
+        model_tuple, logmag_tensor[:, : n_lookback + n_lookahead + 1, :]
     )
     for k in range(1, n_fbin):
         phase[0, k] = phase[0, k - 1] + fpd[k - 1]
     for i in range(1, n_frame):
         tpd, fpd = compute_1st_stage(
-            cfg, model_tuple, logmag[:, i : i + n_lookback + n_lookahead + 1, :]
+            model_tuple, logmag_tensor[:, i : i + n_lookback + n_lookahead + 1, :]
         )  # Eqs. (29), (30)
         phase[i, :] = compute_2nd_stage(
-            cfg, phase[i - 1, :], (tpd, fpd), magnitude[i, :], magnitude[i - 1, :]
+            phase[i - 1, :], (tpd, fpd), magnitude[i, :], magnitude[i - 1, :]
         )  # Eq. (31)
     return phase
 
 
-def _reconst_waveform(cfg, model_tuple, logmag_path):
+def _reconst_waveform(model_tuple: tuple[TOPRNet, TOPRNet], logmag_path: str) -> None:
     """Reconstruct audio waveform only from the magnitude spectrum.
 
     Args:
-        cfg (DictConfig): configuration.
         model_tuple (Tuple): tuple of DNN params (nn.Module).
         logmag_path (str): path to the log-magnitude spectrum.
 
     Returns:
         None.
     """
+    feat_cfg = FeatureConfig()
     logmag = np.load(logmag_path)  # [T, K]
     magnitude = np.exp(logmag)  # [T, K]
-    phase = reconst_phase(cfg, model_tuple, logmag, magnitude)  # [T, K]
+    phase = reconst_phase(model_tuple, logmag, magnitude)  # [T, K]
     reconst_spec = magnitude * np.exp(1j * phase)  # [T, K]
     stfft = signal.ShortTimeFFT(
-        win=signal.get_window(cfg.feature.window, cfg.feature.win_length),
-        hop=cfg.feature.hop_length,
-        fs=cfg.feature.sample_rate,
-        mfft=cfg.feature.n_fft,
+        win=signal.get_window(feat_cfg.window, feat_cfg.win_length),
+        hop=feat_cfg.hop_length,
+        fs=feat_cfg.sample_rate,
+        mfft=feat_cfg.n_fft,
     )
     audio = stfft.istft(reconst_spec.T)
-    wav_file = get_wavname(cfg, os.path.basename(logmag_path))
-    sf.write(wav_file, audio, cfg.feature.sample_rate)
+    wav_file = get_wavname(os.path.basename(logmag_path))
+    sf.write(wav_file, audio, feat_cfg.sample_rate)
 
 
-def reconst_waveform(cfg, model_tuple, logmag_list):
+def reconst_waveform(
+    model_tuple: tuple[TOPRNet, TOPRNet], logmag_list: list[str]
+) -> None:
     """Reconstruct audio waveforms in parallel.
 
     Args:
-        cfg (DictConfig): configuration.
         model_tuple (Tuple): tuple of DNN params (nn.Module).
         logmag_list (list): list of path to the log-magnitude spectrum.
 
     Returns:
         None.
     """
+    preproc_cfg = PreProcessConfig()
     set_start_method("spawn")
-    with ProcessPoolExecutor(cfg.preprocess.n_jobs) as executor:
+    with ProcessPoolExecutor(preproc_cfg.n_jobs) as executor:
         futures = [
-            executor.submit(_reconst_waveform, cfg, model_tuple, logmag_path)
+            executor.submit(_reconst_waveform, model_tuple, logmag_path)
             for logmag_path in logmag_list
         ]
         for future in prg(
@@ -355,11 +375,10 @@ def reconst_waveform(cfg, model_tuple, logmag_list):
             future.result()  # return None
 
 
-def compute_obj_scores(cfg, logmag_list):
+def compute_obj_scores(logmag_list: list[str]) -> dict[str, list[float]]:
     """Compute objective scores; PESQ, STOI and LSC.
 
     Args:
-        cfg (DictConfig): configuration.
         logmag_list (list): list of path to the log-magnitude spectrum.
 
     Returns:
@@ -372,25 +391,25 @@ def compute_obj_scores(cfg, logmag_list):
         suffix=" ",
         redirect_stdout=False,
     ):
-        score_dict["pesq"].append(compute_pesq(cfg, os.path.basename(logmag_path)))
-        score_dict["stoi"].append(compute_stoi(cfg, os.path.basename(logmag_path)))
-        score_dict["lsc"].append(compute_lsc(cfg, os.path.basename(logmag_path)))
+        score_dict["pesq"].append(compute_pesq(os.path.basename(logmag_path)))
+        score_dict["stoi"].append(compute_stoi(os.path.basename(logmag_path)))
+        score_dict["lsc"].append(compute_lsc(os.path.basename(logmag_path)))
     return score_dict
 
 
-def aggregate_scores(cfg, score_dict, score_dir):
+def aggregate_scores(score_dict: dict[str, list[float]], score_dir: str) -> None:
     """Aggregate objective evaluation scores.
 
     Args:
-        cfg (DictConfig): configuration.
         score_dict (dict): dictionary of objective score lists.
         score_dir (str): dictionary name of objective score files.
 
     Returns:
         None.
     """
+    cfg = ModelConfig()
     for score_type, score_list in score_dict.items():
-        if cfg.model.n_lookahead == 0:
+        if cfg.n_lookahead == 0:
             out_filename = f"{score_type}_score_TOPR_online.txt"
         else:
             out_filename = f"{score_type}_score_TOPR_offline.txt"
@@ -409,37 +428,36 @@ def aggregate_scores(cfg, score_dict, score_dir):
         )
 
 
-def main(cfg: DictConfig):
+def main() -> None:
     """Perform evaluation."""
     # setup directory
-    wav_dir = get_wavdir(cfg)
+    path_cfg = PathConfig()
+    wav_dir = get_wavdir()
     os.makedirs(wav_dir, exist_ok=True)
-    score_dir = os.path.join(cfg.TOPR.root_dir, cfg.TOPR.score_dir)
+    score_dir = os.path.join(path_cfg.root_dir, "score")
     os.makedirs(score_dir, exist_ok=True)
 
     # load DNN parameters
-    model_bpd, model_fpd = load_checkpoint(cfg)
+    model_bpd, model_fpd = load_checkpoint()
     model_bpd.cuda()
     model_fpd.cuda()
     model_bpd.eval()
     model_fpd.eval()
 
     # load log-magnitude spectra
-    feat_dir = os.path.join(cfg.TOPR.root_dir, cfg.TOPR.feat_dir, cfg.TOPR.evalset_dir)
+    feat_dir = os.path.join(path_cfg.root_dir, path_cfg.feat_dir, "eval")
     logmag_list = glob.glob(feat_dir + "/*-feats_logmag.npy")
     logmag_list.sort()
 
     # reconstruct phase and waveform
-    reconst_waveform(cfg, (model_bpd, model_fpd), logmag_list)
+    reconst_waveform((model_bpd, model_fpd), logmag_list)
 
     # compute objective scores
-    score_dict = compute_obj_scores(cfg, logmag_list)
+    score_dict = compute_obj_scores(logmag_list)
 
     # aggregate objective scores
-    aggregate_scores(cfg, score_dict, score_dir)
+    aggregate_scores(score_dict, score_dir)
 
 
 if __name__ == "__main__":
-    with initialize(version_base=None, config_path="."):
-        config = compose(config_name="config")
-    main(config)
+    main()

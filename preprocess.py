@@ -31,60 +31,57 @@ from concurrent.futures import ProcessPoolExecutor
 
 import numpy as np
 import soundfile as sf
-from hydra import compose, initialize
 from progressbar import progressbar as prg
 from pydub import AudioSegment
 from scipy import signal
 
+from config import FeatureConfig, PathConfig, PreProcessConfig
 
-def make_filelist(cfg):
-    """Make whole dataset into train, dev, and eval parts.
 
-    Args:
-        cfg (DictConfig): configuration in YAML format.
-    """
-    wav_dir = os.path.join(cfg.TOPR.root_dir, cfg.TOPR.data_dir, "orig")
+def make_filelist() -> None:
+    """Make whole dataset into train, dev, and eval parts."""
+    path_cfg = PathConfig()
+    preproc_cfg = PreProcessConfig()
+    wav_dir = os.path.join(path_cfg.root_dir, path_cfg.data_dir, "orig")
     wav_list = glob.glob(wav_dir + "/*.wav")
     wav_list = random.sample(wav_list, len(wav_list))
-    n_dev = cfg.preprocess.n_dev
-    n_eval = cfg.preprocess.n_eval
-    list_dir = os.path.join(cfg.TOPR.root_dir, cfg.TOPR.list_dir)
+    n_dev = preproc_cfg.n_dev
+    n_eval = preproc_cfg.n_eval
+    list_dir = os.path.join(path_cfg.root_dir, path_cfg.list_dir)
     os.makedirs(list_dir, exist_ok=True)
 
     for phase in ("train", "dev", "eval"):
         if phase == "train":
             file_list = wav_list[n_dev + n_eval :]
-            file_name = os.path.join(cfg.TOPR.root_dir, cfg.TOPR.list_dir, "train.list")
+            file_name = os.path.join(path_cfg.root_dir, path_cfg.list_dir, "train.list")
         elif phase == "dev":
             file_list = wav_list[:n_dev]
-            file_name = os.path.join(cfg.TOPR.root_dir, cfg.TOPR.list_dir, "dev.list")
+            file_name = os.path.join(path_cfg.root_dir, path_cfg.list_dir, "dev.list")
         else:
             file_list = wav_list[n_dev : n_dev + n_eval]
-            file_name = os.path.join(cfg.TOPR.root_dir, cfg.TOPR.list_dir, "eval.list")
+            file_name = os.path.join(path_cfg.root_dir, path_cfg.list_dir, "eval.list")
 
         with open(file_name, "w", encoding="utf-8") as file_handler:
             for wav_file in file_list:
                 print(wav_file, file=file_handler)
 
 
-def split_utterance(cfg):
-    """Split utterances after resampling into segments.
-
-    Args:
-        cfg (DictConfig): configuration in YAML format.
-    """
-    out_dir = os.path.join(cfg.TOPR.root_dir, cfg.TOPR.data_dir, cfg.TOPR.split_dir)
+def split_utterance() -> None:
+    """Split utterances after resampling into segments."""
+    path_cfg = PathConfig()
+    preproc_cfg = PreProcessConfig()
+    out_dir = os.path.join(path_cfg.root_dir, path_cfg.data_dir, path_cfg.split_dir)
     os.makedirs(out_dir, exist_ok=True)
 
     with open(
-        os.path.join(cfg.TOPR.root_dir, cfg.TOPR.list_dir, "train.list"),
+        os.path.join(path_cfg.root_dir, path_cfg.list_dir, "train.list"),
         "r",
         encoding="utf-8",
     ) as file_handler:
         wav_list = file_handler.read().splitlines()
     wav_list.sort()
 
-    sec_per_split = cfg.preprocess.sec_per_split
+    sec_per_split = preproc_cfg.sec_per_split
     for wav_name in prg(
         wav_list, prefix="Split utterances: ", suffix=" ", redirect_stdout=False
     ):
@@ -100,24 +97,25 @@ def split_utterance(cfg):
                 split_audio.export(out_file, format="wav")
 
 
-def _extract_feature(cfg, wav_file, feat_dir):
+def _extract_feature(wav_file: str, feat_dir: str) -> None:
     """Perform feature extraction.
 
     Args:
-        cfg (DictConfig): configuration in YAML format.
         wav_file (str): name of wav file.
         feat_dir (str): directory name for saving features.
+
+    Returns:
+        None.
     """
+    feat_cfg = FeatureConfig()
     audio, rate = sf.read(wav_file)
-    if audio.dtype in [np.int16, np.int32]:
-        audio = (audio / np.iinfo(audio.dtype).max).astype(np.float64)
     audio = audio.astype(np.float64)
 
     stfft = signal.ShortTimeFFT(
-        win=signal.get_window(cfg.feature.window, cfg.feature.win_length),
-        hop=cfg.feature.hop_length,
+        win=signal.get_window(feat_cfg.window, feat_cfg.win_length),
+        hop=feat_cfg.hop_length,
         fs=rate,
-        mfft=cfg.feature.n_fft,
+        mfft=feat_cfg.n_fft,
     )
     stft_data = stfft.stft(audio)
     stft_data = stft_data.T  # transpose -> [n_frames, n_fft/2 +1]
@@ -135,43 +133,47 @@ def _extract_feature(cfg, wav_file, feat_dir):
     )
 
 
-def extract_feature(cfg, phase):
+def extract_feature(phase: str) -> None:
     """Extract acoustic features.
 
     Args:
-        cfg (DictConfig): configuration in YAML format.
         phase (str): handling dataset (training, development, or evaluation).
+
+    Returns:
+        None.
     """
+    path_cfg = PathConfig()
+    preproc_cfg = PreProcessConfig()
     if phase == "train":
         wav_dir = os.path.join(
-            cfg.TOPR.root_dir,
-            cfg.TOPR.data_dir,
-            cfg.TOPR.split_dir,
+            path_cfg.root_dir,
+            path_cfg.data_dir,
+            path_cfg.split_dir,
         )
         wav_list = glob.glob(wav_dir + "/*.wav")
-        feat_dir = os.path.join(cfg.TOPR.root_dir, cfg.TOPR.feat_dir, "train")
+        feat_dir = os.path.join(path_cfg.root_dir, path_cfg.feat_dir, "train")
     elif phase == "dev":
         with open(
-            os.path.join(cfg.TOPR.root_dir, cfg.TOPR.list_dir, "dev.list"),
+            os.path.join(path_cfg.root_dir, path_cfg.list_dir, "dev.list"),
             "r",
             encoding="utf-8",
         ) as file_handler:
             wav_list = file_handler.read().splitlines()
-        feat_dir = os.path.join(cfg.TOPR.root_dir, cfg.TOPR.feat_dir, "dev")
+        feat_dir = os.path.join(path_cfg.root_dir, path_cfg.feat_dir, "dev")
     else:
         with open(
-            os.path.join(cfg.TOPR.root_dir, cfg.TOPR.list_dir, "eval.list"),
+            os.path.join(path_cfg.root_dir, path_cfg.list_dir, "eval.list"),
             "r",
             encoding="utf-8",
         ) as file_handler:
             wav_list = file_handler.read().splitlines()
-        feat_dir = os.path.join(cfg.TOPR.root_dir, cfg.TOPR.feat_dir, "eval")
+        feat_dir = os.path.join(path_cfg.root_dir, path_cfg.feat_dir, "eval")
 
     wav_list.sort()
     os.makedirs(feat_dir, exist_ok=True)
-    with ProcessPoolExecutor(cfg.preprocess.n_jobs) as executor:
+    with ProcessPoolExecutor(preproc_cfg.n_jobs) as executor:
         futures = [
-            executor.submit(_extract_feature, cfg, wav_file, feat_dir)
+            executor.submit(_extract_feature, wav_file, feat_dir)
             for wav_file in wav_list
         ]
         for future in prg(
@@ -183,16 +185,14 @@ def extract_feature(cfg, phase):
             future.result()  # return None
 
 
-def main(cfg):
+def main() -> None:
     """Perform preprocess."""
-    make_filelist(cfg)
-    split_utterance(cfg)
-    extract_feature(cfg, "train")
-    extract_feature(cfg, "dev")
-    extract_feature(cfg, "eval")
+    make_filelist()
+    split_utterance()
+    extract_feature("train")
+    extract_feature("dev")
+    extract_feature("eval")
 
 
 if __name__ == "__main__":
-    with initialize(version_base=None, config_path="."):
-        config = compose(config_name="config")
-    main(config)
+    main()

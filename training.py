@@ -23,43 +23,96 @@ SOFTWARE.
 """
 
 import os
-from collections import namedtuple
+from typing import NamedTuple
 
+import numpy as np
+import numpy.typing as npt
 import torch
-from hydra import compose, initialize
-from omegaconf import DictConfig, OmegaConf
 from progressbar import progressbar as prg
+from timm.scheduler import CosineLRScheduler
 from torch import nn
+from torch.optim.optimizer import Optimizer
+from torch.utils.data import DataLoader
 from torchinfo import summary
 
+from config import (
+    FeatureConfig,
+    ModelConfig,
+    OptimizerConfig,
+    PathConfig,
+    PreProcessConfig,
+    SchedulerConfig,
+    TrainingConfig,
+)
 from dataset import get_dataloader
-from factory import get_loss, get_lr_scheduler, get_optimizer
-from model import get_model
+from factory import (
+    CustomLoss,
+    get_lr_scheduler,
+    get_optimizer,
+)
+from model import TOPRNet
 
 
-def get_training_modules(cfg: DictConfig):
-    """Instantiate modules for training."""
-    dataloader = get_dataloader(cfg)
-    model = get_model(cfg).cuda()
-    loss_func = get_loss(cfg, model)
-    optimizer = get_optimizer(cfg, model)
+class TrainingModules(NamedTuple):
+    """Training Modules."""
+
+    dataloader: DataLoader[tuple[npt.NDArray[np.float32], npt.NDArray[np.float32]]]
+    model: TOPRNet
+    loss_func: CustomLoss
+    optimizer: Optimizer
+    lr_scheduler: CosineLRScheduler | None
+
+
+def print_config() -> None:
+    """Print all configurations for training."""
+    for cfg in (
+        PathConfig(),
+        PreProcessConfig(),
+        FeatureConfig(),
+        ModelConfig(),
+        OptimizerConfig(),
+        SchedulerConfig(),
+        TrainingConfig(),
+    ):
+        print(cfg)
+
+
+def get_training_modules() -> TrainingModules:
+    """Instantiate modules for training.
+
+    Args:
+       None.
+
+    Returns:
+       modules (TrainingModules): modules required for training.
+    """
+    cfg = TrainingConfig()
+    dataloader = get_dataloader()
+    model = TOPRNet().cuda()
+    loss_func = CustomLoss(model)
+    optimizer = get_optimizer(model)
     lr_scheduler = None
-    if cfg.training.use_scheduler:
-        lr_scheduler = get_lr_scheduler(cfg, optimizer)
-    TrainingModules = namedtuple(
-        "TrainingModules",
-        ["dataloader", "model", "loss_func", "optimizer", "lr_scheduler"],
-    )
+    if cfg.use_scheduler:
+        lr_scheduler = get_lr_scheduler(optimizer)
     modules = TrainingModules(dataloader, model, loss_func, optimizer, lr_scheduler)
     summary(model)
     return modules
 
 
-def training_loop(cfg: DictConfig, modules, mode):
-    """Perform training loop."""
+def training_loop(modules: TrainingModules, mode: str) -> None:
+    """Perform training loop.
+
+    Args:
+        modules (TrainingModules): modules required for training.
+        mode (str): string to specfiy training mode (BPD or FPD).
+
+    Returns:
+       None.
+    """
+    cfg = TrainingConfig()
     dataloader, model, loss_func, optimizer, lr_scheduler = modules
     model.train()
-    n_epoch = cfg.training.n_epoch + 1
+    n_epoch = cfg.n_epoch + 1
     for epoch in prg(
         range(1, n_epoch), prefix="Model training: ", suffix=" ", redirect_stdout=False
     ):
@@ -69,42 +122,49 @@ def training_loop(cfg: DictConfig, modules, mode):
             loss = loss_func.forward(batch, mode)
             epoch_loss += loss.item()
             loss.backward()
-            if cfg.training.use_grad_clip:
-                nn.utils.clip_grad_norm_(model.parameters(), cfg.training.grad_max_norm)
+            if cfg.use_grad_clip:
+                nn.utils.clip_grad_norm_(model.parameters(), cfg.grad_max_norm)
             optimizer.step()
         if lr_scheduler is not None:
-            lr_scheduler.step()
+            lr_scheduler.step(epoch)
         epoch_loss = epoch_loss / len(dataloader)
-        if epoch == 1 or epoch % cfg.training.report_interval == 0:
+        if epoch == 1 or epoch % cfg.report_interval == 0:
             print(f"\nEpoch {epoch}: loss = {epoch_loss:.12f} ")
 
 
-def save_checkpoint(cfg: DictConfig, modules, mode):
-    """Save checkpoint."""
+def save_checkpoint(modules: TrainingModules, mode: str) -> None:
+    """Save checkpoint.
+
+    Args:
+        modules (TrainingModules): modules required for training.
+        mode (str): string to specfiy training mode (BPD or FPD).
+
+    Returns:
+       None.
+    """
+    path_cfg = PathConfig()
     model = modules.model
-    model_dir = os.path.join(cfg.TOPR.root_dir, cfg.TOPR.model_dir)
+    model_dir = os.path.join(path_cfg.root_dir, "model")
     os.makedirs(model_dir, exist_ok=True)
+    model_file = ""
     if mode == "bpd":
-        model_file = os.path.join(model_dir, cfg.training.model_file + ".bpd.pth")
+        model_file = os.path.join(model_dir, path_cfg.model_file + ".bpd.pth")
     elif mode == "fpd":
-        model_file = os.path.join(model_dir, cfg.training.model_file + ".fpd.pth")
-    torch.save(model.state_dict(), model_file)
+        model_file = os.path.join(model_dir, path_cfg.model_file + ".fpd.pth")
+    torch.save(model.state_dict(), f=model_file)
 
 
-def main(cfg: DictConfig):
+def main() -> None:
     """Perform model training."""
-    print(OmegaConf.to_yaml(cfg), flush=True)  # dump configuration
+    modules = get_training_modules()
+    training_loop(modules, "bpd")
+    save_checkpoint(modules, "bpd")
 
-    modules = get_training_modules(cfg)
-    training_loop(cfg, modules, "bpd")
-    save_checkpoint(cfg, modules, "bpd")
-
-    modules = get_training_modules(cfg)
-    training_loop(cfg, modules, "fpd")
-    save_checkpoint(cfg, modules, "fpd")
+    modules = get_training_modules()
+    training_loop(modules, "fpd")
+    save_checkpoint(modules, "fpd")
 
 
 if __name__ == "__main__":
-    with initialize(version_base=None, config_path="."):
-        config = compose(config_name="config")
-    main(config)
+    print_config()
+    main()

@@ -25,15 +25,17 @@ SOFTWARE.
 import torch
 from torch import nn
 
+from config import ModelConfig
+
 
 class MeanSubtraction(nn.Module):
     """Mean subtraction layer."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize class."""
         super().__init__()
 
-    def forward(self, inputs):
+    def forward(self, inputs: torch.Tensor) -> torch.Tensor:
         """Perform mean subtraction.
 
         Args:
@@ -49,7 +51,7 @@ class MeanSubtraction(nn.Module):
 class FreqConv(nn.Module):
     """1-D Frequency convolution layer."""
 
-    def __init__(self, in_channels, out_channels, kernel_size):
+    def __init__(self, in_channels: int, out_channels: int, kernel_size: int) -> None:
         """Initialize class.
 
         Args:
@@ -62,7 +64,7 @@ class FreqConv(nn.Module):
             in_channels, out_channels, kernel_size, padding=(kernel_size - 1) // 2
         )
 
-    def forward(self, inputs):
+    def forward(self, inputs: torch.Tensor) -> torch.Tensor:
         """Forward propagation.
 
         Args:
@@ -78,7 +80,7 @@ class FreqConv(nn.Module):
 class FreqGatedConv(nn.Module):
     """1-D frequency gated convolution layer."""
 
-    def __init__(self, n_channels, kernel_size):
+    def __init__(self, n_channels: int, kernel_size: int) -> None:
         """Initialize class.
 
         Args:
@@ -90,9 +92,17 @@ class FreqGatedConv(nn.Module):
         self.freq_conv2 = FreqConv(n_channels, n_channels, kernel_size)
         self.gate = nn.Sigmoid()
 
-    def forward(self, inputs):
-        """Forward propagation."""
-        return self.freq_conv1(inputs) * self.gate(self.freq_conv2(inputs))
+    def forward(self, inputs: torch.Tensor) -> torch.Tensor:
+        """Forward propagation.
+
+        Args:
+            inputs (Tensor): T-F features. [B, C, K]
+
+        Returns:
+            outputs (Tensor): T-F features. [B, C, K]
+        """
+        outputs = self.freq_conv1(inputs) * self.gate(self.freq_conv2(inputs))
+        return outputs
 
 
 class ResidualBlock(nn.Module):
@@ -101,7 +111,7 @@ class ResidualBlock(nn.Module):
     This consists of two FreqGatedConv modules.
     """
 
-    def __init__(self, n_channels, kernel_size):
+    def __init__(self, n_channels: int, kernel_size: int) -> None:
         """Initialize class.
 
         Args:
@@ -112,14 +122,14 @@ class ResidualBlock(nn.Module):
         self.freq_gated1 = FreqGatedConv(n_channels, kernel_size)
         self.freq_gated2 = FreqGatedConv(n_channels, kernel_size)
 
-    def forward(self, inputs):
+    def forward(self, inputs: torch.Tensor) -> torch.Tensor:
         """Forward propagation.
 
         Args:
-            inputs: T-F features. [B, C, K]
+            inputs (Tensor): T-F features. [B, C, K]
 
         Returns:
-            outputs: T-F features. [B, C, K]
+            outputs (Tensor): T-F features. [B, C, K]
         """
         hidden = self.freq_gated1(inputs)
         outputs = inputs + self.freq_gated2(hidden)
@@ -129,13 +139,14 @@ class ResidualBlock(nn.Module):
 class TOPRNet(nn.Module):
     """DNN for Two-stage Online/Offline Phase Reconstruction."""
 
-    def __init__(self, config):
+    def __init__(self) -> None:
         """Initialize class."""
         super().__init__()
-        n_lookahead = config.model.n_lookahead
-        n_lookback = config.model.n_lookback
-        n_channels = config.model.n_channels
-        kernel_size = config.model.kernel_size
+        cfg = ModelConfig()
+        n_lookahead = cfg.n_lookahead
+        n_lookback = cfg.n_lookback
+        n_channels = cfg.n_channels
+        kernel_size = cfg.kernel_size
         self.net = nn.Sequential(
             MeanSubtraction(),
             FreqConv(n_lookback + n_lookahead + 1, n_channels, kernel_size=1),
@@ -145,25 +156,14 @@ class TOPRNet(nn.Module):
             FreqConv(n_channels, 1, kernel_size=1),
         )
 
-    def forward(self, inputs):
+    def forward(self, inputs: torch.Tensor) -> torch.Tensor:
         """Forward propagation.
 
         Args:
-            inputs: log-magnitude spectra. [B, L+1, K]
+            inputs (Tensor): log-magnitude spectra. [B, L+1, K]
 
         Returns:
-            outputs: BPD or FPD. [B, 1, K]
+            outputs (Tensor): BPD or FPD. [B, 1, K]
         """
         outputs = self.net(inputs)
         return outputs
-
-
-def get_model(cfg):
-    """Instantiate models.
-
-    Args:
-        cfg (DictConfig): configuration in YAML format.
-        device: device info.
-    """
-    model = TOPRNet(cfg)
-    return model

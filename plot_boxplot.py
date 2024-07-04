@@ -34,16 +34,14 @@ def main(cfg: DictConfig):
     """Plot boxplot of scores."""
     score_dir = os.path.join(cfg.TOPR.root_dir, cfg.TOPR.score_dir)
     if cfg.model.n_lookahead == 0:
-        score_file = {"SPSI": None, "RTISI": None, "RTPGHI": None, "TOPR": None}
-        score = {"SPSI": None, "RTISI": None, "RTPGHI": None, "TOPR": None}
+        score_file = {"SPSI": "", "RTISI": "", "RTPGHI": "", "TOPR": ""}
     else:
-        score_file = {"RTISI": None, "PGHI": None, "TOPR": None}
-        score = {"RTISI": None, "PGHI": None, "TOPR": None}
-    fig_dir = os.path.join(cfg.TOPR.root_dir, cfg.TOPR.fig_dir)
+        score_file = {"RTISI": "", "PGHI": "", "TOPR": ""}
+    fig_dir = os.path.join(cfg.TOPR.root_dir, "fig")
     os.makedirs(fig_dir, exist_ok=True)
     fig = plt.figure(figsize=(12, 4))
-
     for i, mode in enumerate(("stoi", "pesq", "lsc")):
+        score = {}
         if cfg.model.n_lookahead == 0:
             score_file["SPSI"] = os.path.join(score_dir, f"{mode}_score_SPSI.txt")
             score_file["RTISI"] = os.path.join(score_dir, f"{mode}_score_RTISI.txt")
