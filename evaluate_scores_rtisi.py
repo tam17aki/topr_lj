@@ -244,7 +244,7 @@ def aggregate_scores(
         if cfg.n_lookahead == 0:
             out_filename = f"{score_type}_score_RTISI.txt"
         else:
-            out_filename = f"{score_type}_score_RTISI_LAtxt"
+            out_filename = f"{score_type}_score_RTISI_LA.txt"
         out_filename = os.path.join(score_dir, out_filename)
         with open(out_filename, mode="w", encoding="utf-8") as file_handler:
             for score in score_list:
