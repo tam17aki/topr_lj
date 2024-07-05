@@ -40,13 +40,7 @@ from scipy.linalg import solve_banded
 from scipy.sparse import csr_array
 from torch.multiprocessing import set_start_method
 
-from config import (
-    EvalConfig,
-    FeatureConfig,
-    ModelConfig,
-    PathConfig,
-    PreProcessConfig,
-)
+import config
 from model import TOPRNet
 
 
@@ -70,15 +64,15 @@ def load_checkpoint() -> tuple[TOPRNet, TOPRNet]:
         model_bpd (nn.Module): DNNs to estimate BPD.
         model_fpd (nn.Module): DNNs to estimate FPD.
     """
-    path_cfg = PathConfig()
-    model_dir = os.path.join(path_cfg.root_dir, path_cfg.model_dir)
+    cfg = config.PathConfig()
+    model_dir = os.path.join(cfg.root_dir, cfg.model_dir)
     model_bpd = TOPRNet().cuda()
-    model_file = os.path.join(model_dir, path_cfg.model_file + ".bpd.pth")
+    model_file = os.path.join(model_dir, cfg.model_file + ".bpd.pth")
     checkpoint = torch.load(model_file)
     model_bpd.load_state_dict(checkpoint)
 
     model_fpd = TOPRNet().cuda()
-    model_file = os.path.join(model_dir, path_cfg.model_file + ".fpd.pth")
+    model_file = os.path.join(model_dir, cfg.model_file + ".fpd.pth")
     checkpoint = torch.load(model_file)
     model_fpd.load_state_dict(checkpoint)
     return model_bpd, model_fpd
@@ -93,9 +87,9 @@ def get_wavdir() -> str:
     Returns:
         wav_dir (str): dirname of wavefile.
     """
-    path_cfg = PathConfig()
-    model_cfg = ModelConfig()
-    eval_cfg = EvalConfig()
+    path_cfg = config.PathConfig()
+    model_cfg = config.ModelConfig()
+    eval_cfg = config.EvalConfig()
     if model_cfg.n_lookahead == 0:
         if eval_cfg.weighted_rpu is True:
             wav_dir = os.path.join(
@@ -142,14 +136,14 @@ def compute_pesq(basename: str) -> float:
     Returns:
         float: PESQ (or wideband PESQ).
     """
-    path_cfg = PathConfig()
+    cfg = config.PathConfig()
     eval_wav, rate = sf.read(get_wavname(basename))
     eval_wav = librosa.resample(
         eval_wav, orig_sr=rate, target_sr=16000, res_type="kaiser_best"
     )
     ref_wavname, _ = os.path.splitext(basename)
     ref_wavname = ref_wavname.split("_")[0][:-6]
-    wav_dir = os.path.join(path_cfg.root_dir, path_cfg.data_dir, "orig")
+    wav_dir = os.path.join(cfg.root_dir, cfg.data_dir, "orig")
     reference, rate = sf.read(os.path.join(wav_dir, ref_wavname + ".wav"))
     reference = librosa.resample(
         reference, orig_sr=rate, target_sr=16000, res_type="kaiser_best"
@@ -170,8 +164,8 @@ def compute_stoi(basename: str) -> float:
     Returns:
         float: STOI (or ESTOI).
     """
-    path_cfg = PathConfig()
-    eval_cfg = EvalConfig()
+    path_cfg = config.PathConfig()
+    eval_cfg = config.EvalConfig()
     eval_wav, _ = sf.read(get_wavname(basename))
     ref_wavname, _ = os.path.splitext(basename)
     ref_wavname = ref_wavname.split("_")[0][:-6]
@@ -193,8 +187,8 @@ def compute_lsc(basename: str) -> np.float64:
     Returns:
         lsc (float): log-spectral convergence.
     """
-    path_cfg = PathConfig()
-    feat_cfg = FeatureConfig()
+    path_cfg = config.PathConfig()
+    feat_cfg = config.FeatureConfig()
     eval_wav, _ = sf.read(get_wavname(basename))
     ref_wavname, _ = os.path.splitext(basename)
     ref_wavname = ref_wavname.split("_")[0][:-6]
@@ -251,8 +245,8 @@ def compute_1st_stage(
         tpd (ndarray): backward TPD. [T, K]
         fpd (ndarray): backward FPD. [T, K-1]
     """
-    model_cfg = ModelConfig()
-    feat_cfg = FeatureConfig()
+    model_cfg = config.ModelConfig()
+    feat_cfg = config.FeatureConfig()
     logmag = logmag.unfold(
         1, model_cfg.n_lookback + model_cfg.n_lookahead + 1, 1
     )  # [1, T, K, L]
@@ -390,9 +384,9 @@ def _reconst_waveform(model_tuple: tuple[TOPRNet, TOPRNet], logmag_path: str) ->
     Returns:
         None.
     """
-    model_cfg = ModelConfig()
-    feat_cfg = FeatureConfig()
-    eval_cfg = EvalConfig()
+    model_cfg = config.ModelConfig()
+    feat_cfg = config.FeatureConfig()
+    eval_cfg = config.EvalConfig()
     logmag = np.load(logmag_path)  # [T, K]
     magnitude = np.exp(logmag)  # [T, K]
 
@@ -434,9 +428,9 @@ def reconst_waveform(
     Returns:
         None.
     """
-    preproc_cfg = PreProcessConfig()
+    cfg = config.PreProcessConfig()
     set_start_method("spawn")
-    with ProcessPoolExecutor(preproc_cfg.n_jobs) as executor:
+    with ProcessPoolExecutor(cfg.n_jobs) as executor:
         futures = [
             executor.submit(_reconst_waveform, model_tuple, logmag_path)
             for logmag_path in logmag_list
@@ -479,8 +473,8 @@ def aggregate_scores(score_dict: dict[str, list[float]], score_dir: str) -> None
     Returns:
         None.
     """
-    model_cfg = ModelConfig()
-    eval_cfg = EvalConfig()
+    model_cfg = config.ModelConfig()
+    eval_cfg = config.EvalConfig()
     for score_type, score_list in score_dict.items():
         if model_cfg.n_lookahead == 0:
             if eval_cfg.weighted_rpu is True:
@@ -510,10 +504,10 @@ def aggregate_scores(score_dict: dict[str, list[float]], score_dir: str) -> None
 def main() -> None:
     """Perform evaluation."""
     # setup directory
-    path_cfg = PathConfig()
+    cfg = config.PathConfig()
     wav_dir = get_wavdir()
     os.makedirs(wav_dir, exist_ok=True)
-    score_dir = os.path.join(path_cfg.root_dir, "score")
+    score_dir = os.path.join(cfg.root_dir, "score")
     os.makedirs(score_dir, exist_ok=True)
 
     # load DNN parameters
@@ -524,7 +518,7 @@ def main() -> None:
     model_fpd.eval()
 
     # load log-magnitude spectra
-    feat_dir = os.path.join(path_cfg.root_dir, path_cfg.feat_dir, "eval")
+    feat_dir = os.path.join(cfg.root_dir, cfg.feat_dir, "eval")
     logmag_list = glob.glob(feat_dir + "/*-feats_logmag.npy")
     logmag_list.sort()
 

@@ -28,7 +28,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import numpy.typing as npt
 
-from config import ModelConfig, PathConfig
+import config
 
 
 def load_scores(mode: str, score_dir: str) -> dict[str, npt.NDArray[np.float]]:
@@ -38,13 +38,10 @@ def load_scores(mode: str, score_dir: str) -> dict[str, npt.NDArray[np.float]]:
         mode (str): mode.
         score_dir (str): score directory.
     """
-    model_cfg = ModelConfig()
-    if model_cfg.n_lookahead == 0:
-        score_file = {"SPSI": "", "RTISI": "", "RTPGHI": "", "TOPR": ""}
-    else:
-        score_file = {"RTISI": "", "PGHI": "", "TOPR": ""}
+    cfg = config.ModelConfig()
     score = {}
-    if model_cfg.n_lookahead == 0:
+    if cfg.n_lookahead == 0:
+        score_file = {"SPSI": "", "RTISI": "", "RTPGHI": "", "TOPR": ""}
         score_file["SPSI"] = os.path.join(score_dir, f"{mode}_score_SPSI.txt")
         score_file["RTISI"] = os.path.join(score_dir, f"{mode}_score_RTISI.txt")
         score_file["RTPGHI"] = os.path.join(score_dir, f"{mode}_score_RTPGHI.txt")
@@ -56,6 +53,7 @@ def load_scores(mode: str, score_dir: str) -> dict[str, npt.NDArray[np.float]]:
         with open(score_file["RTPGHI"], mode="r", encoding="utf-8") as file_hander:
             score["RTPGHI"] = np.array([float(line.strip()) for line in file_hander])
     else:
+        score_file = {"SPSI": "", "RTISI": "", "RTPGHI": "", "TOPR": ""}
         score_file["RTISI"] = os.path.join(score_dir, f"{mode}_score_RTISI_LA.txt")
         score_file["PGHI"] = os.path.join(score_dir, f"{mode}_score_PGHI.txt")
         score_file["TOPR"] = os.path.join(score_dir, f"{mode}_score_TOPR_offline.txt")
@@ -72,8 +70,8 @@ def load_scores(mode: str, score_dir: str) -> dict[str, npt.NDArray[np.float]]:
 
 def main():
     """Plot boxplot of scores."""
-    path_cfg = PathConfig()
-    model_cfg = ModelConfig()
+    path_cfg = config.PathConfig()
+    model_cfg = config.ModelConfig()
     score_dir = os.path.join(path_cfg.root_dir, "score")
     fig_dir = os.path.join(path_cfg.root_dir, "fig")
     os.makedirs(fig_dir, exist_ok=True)

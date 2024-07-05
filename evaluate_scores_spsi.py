@@ -33,7 +33,7 @@ from progressbar import progressbar as prg
 from pystoi import stoi
 from scipy import signal
 
-from config import EvalConfig, FeatureConfig, PathConfig
+import config
 
 
 def get_wavdir() -> str:
@@ -45,8 +45,8 @@ def get_wavdir() -> str:
     Returns:
         wav_dir (str): dirname of wavefile.
     """
-    path_cfg = PathConfig()
-    wav_dir = os.path.join(path_cfg.root_dir, path_cfg.demo_dir, "online", "SPSI")
+    cfg = config.PathConfig()
+    wav_dir = os.path.join(cfg.root_dir, cfg.demo_dir, "online", "SPSI")
     return wav_dir
 
 
@@ -94,7 +94,7 @@ def compute_stoi(wav_path: str) -> float:
     Returns:
         float: STOI (or ESTOI).
     """
-    eval_cfg = EvalConfig()
+    cfg = config.EvalConfig()
     eval_wav, rate = sf.read(get_wavname(os.path.basename(wav_path)))
     eval_wav = librosa.resample(eval_wav, orig_sr=rate, target_sr=16000)
     reference, rate = sf.read(wav_path)
@@ -103,7 +103,7 @@ def compute_stoi(wav_path: str) -> float:
         eval_wav = eval_wav[: len(reference)]
     else:
         reference = reference[: len(eval_wav)]
-    return stoi(reference, eval_wav, rate, extended=eval_cfg.stoi_extended)
+    return stoi(reference, eval_wav, rate, extended=cfg.stoi_extended)
 
 
 def compute_lsc(wav_path: str) -> np.float64:
@@ -115,7 +115,7 @@ def compute_lsc(wav_path: str) -> np.float64:
     Returns:
         float: log-spectral convergence.
     """
-    feat_cfg = FeatureConfig()
+    cfg = config.FeatureConfig()
     eval_wav, rate = sf.read(get_wavname(os.path.basename(wav_path)))
     eval_wav = librosa.resample(eval_wav, orig_sr=rate, target_sr=16000)
     reference, rate = sf.read(wav_path)
@@ -125,10 +125,10 @@ def compute_lsc(wav_path: str) -> np.float64:
     else:
         reference = reference[: len(eval_wav)]
     stfft = signal.ShortTimeFFT(
-        win=signal.get_window(feat_cfg.window, feat_cfg.win_length),
-        hop=feat_cfg.hop_length,
+        win=signal.get_window(cfg.window, cfg.win_length),
+        hop=cfg.hop_length,
         fs=rate,
-        mfft=feat_cfg.n_fft,
+        mfft=cfg.n_fft,
     )
     ref_abs = np.abs(stfft.stft(reference))
     eval_abs = np.abs(stfft.stft(eval_wav))
@@ -148,22 +148,22 @@ def reconst_waveform(wav_list: list[str]) -> None:
     Returns:
         None.
     """
-    feat_cfg = FeatureConfig()
+    cfg = config.FeatureConfig()
     for wav_path in prg(
         wav_list, prefix="Reconstruct waveform: ", suffix=" ", redirect_stdout=False
     ):
         audio, _ = sf.read(wav_path)
         stfft = signal.ShortTimeFFT(
-            win=signal.get_window(feat_cfg.window, feat_cfg.win_length),
-            hop=feat_cfg.hop_length,
-            fs=feat_cfg.sample_rate,
-            mfft=feat_cfg.n_fft,
+            win=signal.get_window(cfg.window, cfg.win_length),
+            hop=cfg.hop_length,
+            fs=cfg.sample_rate,
+            mfft=cfg.n_fft,
         )
         magnitude = np.abs(stfft.stft(audio))
-        reconst_spec = octave.spsi(magnitude, feat_cfg.hop_length, feat_cfg.win_length)
+        reconst_spec = octave.spsi(magnitude, cfg.hop_length, cfg.win_length)
         audio = stfft.istft(reconst_spec)
         wav_file = get_wavname(os.path.basename(wav_path))
-        sf.write(wav_file, audio, feat_cfg.sample_rate)
+        sf.write(wav_file, audio, cfg.sample_rate)
 
 
 def compute_obj_scores(wav_list: list[str]) -> dict[str, list[float]]:
@@ -215,20 +215,20 @@ def aggregate_scores(score_dict: dict[str, list[float]], score_dir: str) -> None
 def main() -> None:
     """Perform evaluation."""
     # initialization for octave
-    path_cfg = PathConfig()
-    octave.addpath(octave.genpath(path_cfg.ltfat_dir))
+    cfg = config.PathConfig()
+    octave.addpath(octave.genpath(cfg.ltfat_dir))
     octave.ltfatstart(0)
     octave.phaseretstart(0)
 
     # setup directory
     wav_dir = get_wavdir()  # dirname for reconstructed wav files
     os.makedirs(wav_dir, exist_ok=True)
-    score_dir = os.path.join(path_cfg.root_dir, path_cfg.score_dir)
+    score_dir = os.path.join(cfg.root_dir, cfg.score_dir)
     os.makedirs(score_dir, exist_ok=True)
 
     # reconstruct phase and waveform
     with open(
-        os.path.join(path_cfg.root_dir, path_cfg.list_dir, "eval.list"),
+        os.path.join(cfg.root_dir, cfg.list_dir, "eval.list"),
         "r",
         encoding="utf-8",
     ) as file_handler:

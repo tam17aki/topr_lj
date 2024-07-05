@@ -35,13 +35,13 @@ from progressbar import progressbar as prg
 from pydub import AudioSegment
 from scipy import signal
 
-from config import FeatureConfig, PathConfig, PreProcessConfig
+import config
 
 
 def make_filelist() -> None:
     """Make whole dataset into train, dev, and eval parts."""
-    path_cfg = PathConfig()
-    preproc_cfg = PreProcessConfig()
+    path_cfg = config.PathConfig()
+    preproc_cfg = config.PreProcessConfig()
     wav_dir = os.path.join(path_cfg.root_dir, path_cfg.data_dir, "orig")
     wav_list = glob.glob(wav_dir + "/*.wav")
     wav_list = random.sample(wav_list, len(wav_list))
@@ -68,8 +68,8 @@ def make_filelist() -> None:
 
 def split_utterance() -> None:
     """Split utterances after resampling into segments."""
-    path_cfg = PathConfig()
-    preproc_cfg = PreProcessConfig()
+    path_cfg = config.PathConfig()
+    preproc_cfg = config.PreProcessConfig()
     out_dir = os.path.join(path_cfg.root_dir, path_cfg.data_dir, path_cfg.split_dir)
     os.makedirs(out_dir, exist_ok=True)
 
@@ -107,15 +107,15 @@ def _extract_feature(wav_file: str, feat_dir: str) -> None:
     Returns:
         None.
     """
-    feat_cfg = FeatureConfig()
+    cfg = config.FeatureConfig()
     audio, rate = sf.read(wav_file)
     audio = audio.astype(np.float64)
 
     stfft = signal.ShortTimeFFT(
-        win=signal.get_window(feat_cfg.window, feat_cfg.win_length),
-        hop=feat_cfg.hop_length,
+        win=signal.get_window(cfg.window, cfg.win_length),
+        hop=cfg.hop_length,
         fs=rate,
-        mfft=feat_cfg.n_fft,
+        mfft=cfg.n_fft,
     )
     stft_data = stfft.stft(audio)
     stft_data = stft_data.T  # transpose -> [n_frames, n_fft/2 +1]
@@ -142,8 +142,8 @@ def extract_feature(phase: str) -> None:
     Returns:
         None.
     """
-    path_cfg = PathConfig()
-    preproc_cfg = PreProcessConfig()
+    path_cfg = config.PathConfig()
+    preproc_cfg = config.PreProcessConfig()
     if phase == "train":
         wav_dir = os.path.join(
             path_cfg.root_dir,

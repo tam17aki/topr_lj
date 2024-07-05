@@ -39,13 +39,7 @@ from scipy.sparse import csr_array, diags_array
 from scipy.sparse.linalg import spsolve
 from torch.multiprocessing import set_start_method
 
-from config import (
-    EvalConfig,
-    FeatureConfig,
-    ModelConfig,
-    PathConfig,
-    PreProcessConfig,
-)
+import config
 from model import TOPRNet
 
 
@@ -59,15 +53,15 @@ def load_checkpoint() -> tuple[TOPRNet, TOPRNet]:
         model_bpd (nn.Module): DNNs to estimate BPD.
         model_fpd (nn.Module): DNNs to estimate FPD.
     """
-    path_cfg = PathConfig()
-    model_dir = os.path.join(path_cfg.root_dir, "model")
+    cfg = config.PathConfig()
+    model_dir = os.path.join(cfg.root_dir, "model")
     model_bpd = TOPRNet().cuda()
-    model_file = os.path.join(model_dir, path_cfg.model_file + ".bpd.pth")
+    model_file = os.path.join(model_dir, cfg.model_file + ".bpd.pth")
     checkpoint = torch.load(model_file)
     model_bpd.load_state_dict(checkpoint)
 
     model_fpd = TOPRNet().cuda()
-    model_file = os.path.join(model_dir, path_cfg.model_file + ".fpd.pth")
+    model_file = os.path.join(model_dir, cfg.model_file + ".fpd.pth")
     checkpoint = torch.load(model_file)
     model_fpd.load_state_dict(checkpoint)
     return model_bpd, model_fpd
@@ -82,9 +76,9 @@ def get_wavdir() -> str:
     Returns:
         wav_dir (str): dirname of wavefile.
     """
-    path_cfg = PathConfig()
-    model_cfg = ModelConfig()
-    if model_cfg.n_lookahead == 0:
+    path_cfg = config.PathConfig()
+    cfg = config.ModelConfig()
+    if cfg.n_lookahead == 0:
         wav_dir = os.path.join(path_cfg.root_dir, path_cfg.demo_dir, "online", "TOPR")
     else:
         wav_dir = os.path.join(path_cfg.root_dir, path_cfg.demo_dir, "offline", "TOPR")
@@ -116,7 +110,7 @@ def compute_pesq(basename: str) -> float:
     Returns:
         float: PESQ (or wideband PESQ).
     """
-    cfg = PathConfig()
+    cfg = config.PathConfig()
     eval_wav, rate = sf.read(get_wavname(basename))
     eval_wav = librosa.resample(eval_wav, orig_sr=rate, target_sr=16000)
     ref_wavname, _ = os.path.splitext(basename)
@@ -140,12 +134,12 @@ def compute_stoi(basename: str) -> float:
     Returns:
         float: STOI (or ESTOI).
     """
-    cfg = PathConfig()
-    eval_cfg = EvalConfig()
+    path_cfg = config.PathConfig()
+    eval_cfg = config.EvalConfig()
     eval_wav, _ = sf.read(get_wavname(basename))
     ref_wavname, _ = os.path.splitext(basename)
     ref_wavname = ref_wavname.split("_")[0][:-6]
-    wav_dir = os.path.join(cfg.root_dir, cfg.data_dir, "orig")
+    wav_dir = os.path.join(path_cfg.root_dir, path_cfg.data_dir, "orig")
     reference, rate = sf.read(os.path.join(wav_dir, ref_wavname + ".wav"))
     if len(eval_wav) > len(reference):
         eval_wav = eval_wav[: len(reference)]
@@ -163,8 +157,8 @@ def compute_lsc(basename: str) -> np.float64:
     Returns:
         lsc (float64): log-spectral convergence.
     """
-    path_cfg = PathConfig()
-    feat_cfg = FeatureConfig()
+    path_cfg = config.PathConfig()
+    feat_cfg = config.FeatureConfig()
     eval_wav, _ = sf.read(get_wavname(basename))
     ref_wavname, _ = os.path.splitext(basename)
     ref_wavname = ref_wavname.split("_")[0][:-6]
@@ -221,7 +215,7 @@ def compute_1st_stage(
         tpd (ndarray): TPD. [K]
         fpd (ndarray): FPD. [K-1]
     """
-    cfg = FeatureConfig()
+    cfg = config.FeatureConfig()
     model_bpd, model_fpd = model_tuple  # DNNs
     bpd = model_bpd(logmag)  # [1, 1, K]
     fpd = model_fpd(logmag)  # [1, 1, K]
@@ -249,7 +243,7 @@ def compute_2nd_stage(
     Returns:
         phase (ndarray): reconstructed phase spectrum at the current frame. [K]
     """
-    cfg = EvalConfig()
+    cfg = config.EvalConfig()
     tpd, fpd = pd_tuple
     n_fbin = mag_cur.shape[0]
 
@@ -299,7 +293,7 @@ def reconst_phase(
     Returns:
         phase (ndarray): reconstruced phase. [T, K]
     """
-    cfg = ModelConfig()
+    cfg = config.ModelConfig()
     logmag = np.pad(logmag, ((cfg.n_lookback, cfg.n_lookahead), (0, 0)), "constant")
     logmag_tensor = (
         torch.from_numpy(logmag).float().unsqueeze(0).cuda()
@@ -334,20 +328,20 @@ def _reconst_waveform(model_tuple: tuple[TOPRNet, TOPRNet], logmag_path: str) ->
     Returns:
         None.
     """
-    feat_cfg = FeatureConfig()
+    cfg = config.FeatureConfig()
     logmag = np.load(logmag_path)  # [T, K]
     magnitude = np.exp(logmag)  # [T, K]
     phase = reconst_phase(model_tuple, logmag, magnitude)  # [T, K]
     reconst_spec = magnitude * np.exp(1j * phase)  # [T, K]
     stfft = signal.ShortTimeFFT(
-        win=signal.get_window(feat_cfg.window, feat_cfg.win_length),
-        hop=feat_cfg.hop_length,
-        fs=feat_cfg.sample_rate,
-        mfft=feat_cfg.n_fft,
+        win=signal.get_window(cfg.window, cfg.win_length),
+        hop=cfg.hop_length,
+        fs=cfg.sample_rate,
+        mfft=cfg.n_fft,
     )
     audio = stfft.istft(reconst_spec.T)
     wav_file = get_wavname(os.path.basename(logmag_path))
-    sf.write(wav_file, audio, feat_cfg.sample_rate)
+    sf.write(wav_file, audio, cfg.sample_rate)
 
 
 def reconst_waveform(
@@ -362,9 +356,9 @@ def reconst_waveform(
     Returns:
         None.
     """
-    preproc_cfg = PreProcessConfig()
+    cfg = config.PreProcessConfig()
     set_start_method("spawn")
-    with ProcessPoolExecutor(preproc_cfg.n_jobs) as executor:
+    with ProcessPoolExecutor(cfg.n_jobs) as executor:
         futures = [
             executor.submit(_reconst_waveform, model_tuple, logmag_path)
             for logmag_path in logmag_list
@@ -407,7 +401,7 @@ def aggregate_scores(score_dict: dict[str, list[float]], score_dir: str) -> None
     Returns:
         None.
     """
-    cfg = ModelConfig()
+    cfg = config.ModelConfig()
     for score_type, score_list in score_dict.items():
         if cfg.n_lookahead == 0:
             out_filename = f"{score_type}_score_TOPR_online.txt"
@@ -431,7 +425,7 @@ def aggregate_scores(score_dict: dict[str, list[float]], score_dir: str) -> None
 def main() -> None:
     """Perform evaluation."""
     # setup directory
-    path_cfg = PathConfig()
+    path_cfg = config.PathConfig()
     wav_dir = get_wavdir()
     os.makedirs(wav_dir, exist_ok=True)
     score_dir = os.path.join(path_cfg.root_dir, "score")

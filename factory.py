@@ -29,7 +29,7 @@ from timm.scheduler import CosineLRScheduler
 from torch import nn, optim
 from torch.optim.optimizer import Optimizer
 
-from config import FeatureConfig, OptimizerConfig, SchedulerConfig, TrainingConfig
+import config
 from model import TOPRNet
 
 
@@ -39,17 +39,15 @@ def get_optimizer(model: TOPRNet) -> Optimizer:
     Args:
         model (nn.Module): network parameters.
     """
-    optim_cfg = OptimizerConfig()
-    if optim_cfg.name == "RAdam":
+    cfg = config.OptimizerConfig()
+    if cfg.name == "RAdam":
         return optim.RAdam(
             model.parameters(),
-            lr=optim_cfg.lr,
-            weight_decay=optim_cfg.weight_decay,
-            decoupled_weight_decay=optim_cfg.decoupled_weight_decay,
+            lr=cfg.lr,
+            weight_decay=cfg.weight_decay,
+            decoupled_weight_decay=cfg.decoupled_weight_decay,
         )
-    return optim.AdamW(
-        model.parameters(), lr=optim_cfg.lr, weight_decay=optim_cfg.weight_decay
-    )
+    return optim.AdamW(model.parameters(), lr=cfg.lr, weight_decay=cfg.weight_decay)
 
 
 def get_lr_scheduler(optimizer: Optimizer) -> CosineLRScheduler:
@@ -58,7 +56,7 @@ def get_lr_scheduler(optimizer: Optimizer) -> CosineLRScheduler:
     Args:
         optimizer (Optimizer): Wrapped optimizer.
     """
-    cfg = SchedulerConfig()
+    cfg = config.SchedulerConfig()
     lr_scheduler = CosineLRScheduler(
         optimizer,
         t_initial=cfg.max_epochs,
@@ -80,8 +78,8 @@ class CustomLoss(nn.Module):
             model (TOPRNet): neural network to estimate phase differences.
         """
         super().__init__()
-        self.feat_cfg = FeatureConfig()
-        self.train_cfg = TrainingConfig()
+        self.feat_cfg = config.FeatureConfig()
+        self.train_cfg = config.TrainingConfig()
         self.model = model
 
     def _tpd2bpd(self, tpd: torch.Tensor) -> torch.Tensor:

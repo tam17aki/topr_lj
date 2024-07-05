@@ -23,7 +23,7 @@ SOFTWARE.
 """
 
 import os
-from typing import NamedTuple
+from dataclasses import dataclass
 
 import numpy as np
 import numpy.typing as npt
@@ -35,15 +35,7 @@ from torch.optim.optimizer import Optimizer
 from torch.utils.data import DataLoader
 from torchinfo import summary
 
-from config import (
-    FeatureConfig,
-    ModelConfig,
-    OptimizerConfig,
-    PathConfig,
-    PreProcessConfig,
-    SchedulerConfig,
-    TrainingConfig,
-)
+import config
 from dataset import get_dataloader
 from factory import (
     CustomLoss,
@@ -53,7 +45,8 @@ from factory import (
 from model import TOPRNet
 
 
-class TrainingModules(NamedTuple):
+@dataclass
+class TrainingModules:
     """Training Modules."""
 
     dataloader: DataLoader[tuple[npt.NDArray[np.float32], npt.NDArray[np.float32]]]
@@ -66,13 +59,13 @@ class TrainingModules(NamedTuple):
 def print_config() -> None:
     """Print all configurations for training."""
     for cfg in (
-        PathConfig(),
-        PreProcessConfig(),
-        FeatureConfig(),
-        ModelConfig(),
-        OptimizerConfig(),
-        SchedulerConfig(),
-        TrainingConfig(),
+        config.PathConfig(),
+        config.PreProcessConfig(),
+        config.FeatureConfig(),
+        config.ModelConfig(),
+        config.OptimizerConfig(),
+        config.SchedulerConfig(),
+        config.TrainingConfig(),
     ):
         print(cfg)
 
@@ -86,7 +79,7 @@ def get_training_modules() -> TrainingModules:
     Returns:
        modules (TrainingModules): modules required for training.
     """
-    cfg = TrainingConfig()
+    cfg = config.TrainingConfig()
     dataloader = get_dataloader()
     model = TOPRNet().cuda()
     loss_func = CustomLoss(model)
@@ -109,8 +102,12 @@ def training_loop(modules: TrainingModules, mode: str) -> None:
     Returns:
        None.
     """
-    cfg = TrainingConfig()
-    dataloader, model, loss_func, optimizer, lr_scheduler = modules
+    cfg = config.TrainingConfig()
+    dataloader = modules.dataloader
+    model = modules.model
+    loss_func = modules.loss_func
+    optimizer = modules.optimizer
+    lr_scheduler = modules.lr_scheduler
     model.train()
     n_epoch = cfg.n_epoch + 1
     for epoch in prg(
@@ -142,7 +139,7 @@ def save_checkpoint(modules: TrainingModules, mode: str) -> None:
     Returns:
        None.
     """
-    path_cfg = PathConfig()
+    path_cfg = config.PathConfig()
     model = modules.model
     model_dir = os.path.join(path_cfg.root_dir, "model")
     os.makedirs(model_dir, exist_ok=True)

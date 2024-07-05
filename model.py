@@ -25,7 +25,7 @@ SOFTWARE.
 import torch
 from torch import nn
 
-from config import ModelConfig
+import config
 
 
 class MeanSubtraction(nn.Module):
@@ -142,7 +142,7 @@ class TOPRNet(nn.Module):
     def __init__(self) -> None:
         """Initialize class."""
         super().__init__()
-        cfg = ModelConfig()
+        cfg = config.ModelConfig()
         n_lookahead = cfg.n_lookahead
         n_lookback = cfg.n_lookback
         n_channels = cfg.n_channels

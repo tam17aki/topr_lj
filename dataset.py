@@ -30,7 +30,7 @@ import numpy.typing as npt
 import torch
 from torch.utils.data import DataLoader, Dataset
 
-from config import ModelConfig, PathConfig, TrainingConfig
+import config
 
 
 @dataclass
@@ -83,7 +83,7 @@ def collate_fn_topr(
     Returns:
         tuple: a batch of inputs and targets.
     """
-    cfg = ModelConfig()
+    cfg = config.ModelConfig()
     batch_temp = [x[0] for x in batch]
     logmag_feats = torch.tensor(np.array(batch_temp).astype(np.float32))
     logmag_feats = logmag_feats.unfold(1, cfg.n_lookback + cfg.n_lookahead + 1, 1)
@@ -109,8 +109,8 @@ def get_dataloader() -> (
     Returns:
         dict: Data loaders.
     """
-    train_cfg = TrainingConfig()
-    path_cfg = PathConfig()
+    train_cfg = config.TrainingConfig()
+    path_cfg = config.PathConfig()
     wav_list = os.listdir(
         os.path.join(path_cfg.root_dir, path_cfg.data_dir, path_cfg.split_dir)
     )
