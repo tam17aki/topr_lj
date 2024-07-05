@@ -94,7 +94,7 @@ def get_wavname(basename: str) -> str:
         wav_file (str): filename of wavefile.
     """
     wav_name, _ = os.path.splitext(basename)
-    wav_name = wav_name.split("_")[0][:-6]
+    wav_name = wav_name.split("_")[0][:-6]  # remove '_logmag'
     wav_dir = get_wavdir()
     wav_file = os.path.join(wav_dir, wav_name + ".wav")
     return wav_file
@@ -115,7 +115,8 @@ def compute_pesq(basename: str) -> float:
         eval_wav, orig_sr=rate, target_sr=16000
     )
     ref_wavname, _ = os.path.splitext(basename)
-    ref_wavname = ref_wavname.split("_")[0][:-6]
+    print(ref_wavname)
+    ref_wavname = ref_wavname.split("_")[0][:-6]  # remove '_logmag'
     wav_dir = os.path.join(cfg.root_dir, cfg.data_dir, "orig")
     reference, rate = sf.read(os.path.join(wav_dir, ref_wavname + ".wav"))
     reference: npt.NDArray[np.float64] = librosa.resample(

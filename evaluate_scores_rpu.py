@@ -120,7 +120,7 @@ def get_wavname(basename: str) -> str:
         wav_file (str): filename of wavefile.
     """
     wav_name, _ = os.path.splitext(basename)
-    wav_name = wav_name.split("_")[0][:-6]
+    wav_name = wav_name.split("_")[0][:-6]  # remove '_logmag'
     wav_dir = get_wavdir()
     wav_file = os.path.join(wav_dir, wav_name + ".wav")
     return wav_file
@@ -141,7 +141,7 @@ def compute_pesq(basename: str) -> float:
         eval_wav, orig_sr=rate, target_sr=16000, res_type="kaiser_best"
     )
     ref_wavname, _ = os.path.splitext(basename)
-    ref_wavname = ref_wavname.split("_")[0][:-6]
+    ref_wavname = ref_wavname.split("_")[0][:-6]  # remove '_logmag'
     wav_dir = os.path.join(cfg.root_dir, cfg.data_dir, "orig")
     reference, rate = sf.read(os.path.join(wav_dir, ref_wavname + ".wav"))
     reference = librosa.resample(
@@ -151,7 +151,7 @@ def compute_pesq(basename: str) -> float:
         eval_wav = eval_wav[: reference.size]
     else:
         reference = reference[: eval_wav.size]
-    return pesq(16000, reference, eval_wav)
+    return float(pesq(16000, reference, eval_wav))
 
 
 def compute_stoi(basename: str) -> float:
@@ -444,7 +444,7 @@ def reconst_waveform(
             future.result()  # return None
 
 
-def compute_obj_scores(logmag_list: list[str]) -> dict[str, list[float]]:
+def compute_obj_scores(logmag_list: list[str]) -> dict[str, list[np.float64 | float]]:
     """Compute objective scores; PESQ, STOI and LSC.
 
     Args:
@@ -467,7 +467,9 @@ def compute_obj_scores(logmag_list: list[str]) -> dict[str, list[float]]:
     return score_dict
 
 
-def aggregate_scores(score_dict: dict[str, list[float]], score_dir: str) -> None:
+def aggregate_scores(
+    score_dict: dict[str, list[np.float64 | float]], score_dir: str
+) -> None:
     """Aggregate objective evaluation scores.
 
     Args:
