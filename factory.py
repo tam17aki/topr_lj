@@ -59,10 +59,10 @@ def get_lr_scheduler(optimizer: Optimizer) -> CosineLRScheduler:
     cfg = config.SchedulerConfig()
     lr_scheduler = CosineLRScheduler(
         optimizer,
-        t_initial=cfg.max_epochs,
-        lr_min=cfg.eta_min,
-        warmup_t=cfg.warmup_epochs,
-        warmup_lr_init=cfg.warmup_start_lr,
+        t_initial=cfg.t_initial,
+        lr_min=cfg.lr_min,
+        warmup_t=cfg.warmup_t,
+        warmup_lr_init=cfg.warmup_lr_init,
         warmup_prefix=True,
     )
     return lr_scheduler

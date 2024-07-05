@@ -84,10 +84,10 @@ class SchedulerConfig:
     """Dataclass for learning rate scheduler."""
 
     name: str = "CosineLRScheduler"
-    warmup_epochs: int = 5
-    max_epochs: int = 15
-    warmup_start_lr: float = 0.000001
-    eta_min: float = 0.0002
+    warmup_t: int = 5
+    t_initial: int = 15
+    warmup_lr_init: float = 0.000001
+    lr_min: float = 0.0002
 
 
 @dataclass(frozen=True)
