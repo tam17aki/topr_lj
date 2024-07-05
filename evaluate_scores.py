@@ -77,8 +77,8 @@ def get_wavdir() -> str:
         wav_dir (str): dirname of wavefile.
     """
     path_cfg = config.PathConfig()
-    cfg = config.ModelConfig()
-    if cfg.n_lookahead == 0:
+    model_cfg = config.ModelConfig()
+    if model_cfg.n_lookahead == 0:
         wav_dir = os.path.join(path_cfg.root_dir, path_cfg.demo_dir, "online", "TOPR")
     else:
         wav_dir = os.path.join(path_cfg.root_dir, path_cfg.demo_dir, "offline", "TOPR")
