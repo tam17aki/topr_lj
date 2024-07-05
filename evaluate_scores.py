@@ -122,10 +122,10 @@ def compute_pesq(basename: str) -> float:
     reference: npt.NDArray[np.float64] = librosa.resample(
         y=reference, orig_sr=rate, target_sr=16000
     )
-    if len(eval_wav) > len(reference):
-        eval_wav = eval_wav[: len(reference)]
+    if eval_wav.size > reference.size:
+        eval_wav = eval_wav[: reference.size]
     else:
-        reference = reference[: len(eval_wav)]
+        reference = reference[: eval_wav.size]
     return float(pesq(16000, reference, eval_wav))
 
 
