@@ -453,7 +453,11 @@ def compute_obj_scores(logmag_list: list[str]) -> dict[str, list[np.float64 | fl
     Returns:
         score_dict (dict): dictionary of objective score lists.
     """
-    score_dict = {"pesq": [], "stoi": [], "lsc": []}
+    score_dict: dict[str, list[np.float64 | float]] = {
+        "pesq": [],
+        "stoi": [],
+        "lsc": [],
+    }
     for logmag_path in tqdm(
         logmag_list,
         desc="Compute objective scores: ",

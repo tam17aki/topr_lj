@@ -86,7 +86,7 @@ def compute_pesq(wav_path: str) -> float:
         eval_wav = eval_wav[: reference.size]
     else:
         reference = reference[: eval_wav.size]
-    return pesq(16000, reference, eval_wav)
+    return float(pesq(16000, reference, eval_wav))
 
 
 def compute_stoi(wav_path: str) -> float:
@@ -197,7 +197,11 @@ def compute_obj_scores(wav_list: list[str]) -> dict[str, list[np.float64 | float
     Returns:
         score_list (dict): dictionary of objective score lists.
     """
-    score_dict = {"pesq": [], "stoi": [], "lsc": []}
+    score_dict: dict[str, list[np.float64 | float]] = {
+        "pesq": [],
+        "stoi": [],
+        "lsc": [],
+    }
     for wav_path in tqdm(
         wav_list,
         desc="Compute objective scores: ",

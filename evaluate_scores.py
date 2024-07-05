@@ -111,17 +111,13 @@ def compute_pesq(basename: str) -> float:
     """
     cfg = config.PathConfig()
     eval_wav, rate = sf.read(get_wavname(basename))
-    eval_wav: npt.NDArray[np.float64] = librosa.resample(
-        eval_wav, orig_sr=rate, target_sr=16000
-    )
+    eval_wav = librosa.resample(eval_wav, orig_sr=rate, target_sr=16000)
     ref_wavname, _ = os.path.splitext(basename)
     print(ref_wavname)
     ref_wavname = ref_wavname.split("_")[0][:-6]  # remove '_logmag'
     wav_dir = os.path.join(cfg.root_dir, cfg.data_dir, "orig")
     reference, rate = sf.read(os.path.join(wav_dir, ref_wavname + ".wav"))
-    reference: npt.NDArray[np.float64] = librosa.resample(
-        y=reference, orig_sr=rate, target_sr=16000
-    )
+    reference = librosa.resample(y=reference, orig_sr=rate, target_sr=16000)
     if eval_wav.size > reference.size:
         eval_wav = eval_wav[: reference.size]
     else:

@@ -179,7 +179,11 @@ def compute_obj_scores(wav_list: list[str]) -> dict[str, list[np.float64 | float
     Returns:
         score_dict (dict): dictionary of objective score lists.
     """
-    score_dict = {"pesq": [], "stoi": [], "lsc": []}
+    score_dict: dict[str, list[np.float64 | float]] = {
+        "pesq": [],
+        "stoi": [],
+        "lsc": [],
+    }
     for wav_path in tqdm(
         wav_list,
         desc="Compute objective scores: ",

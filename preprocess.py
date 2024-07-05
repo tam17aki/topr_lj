@@ -91,7 +91,7 @@ def split_utterance() -> None:
             basename, ext = os.path.splitext(wav_name)
             split_fn = basename + "_" + str(i) + ext
             out_file = os.path.join(out_dir, os.path.basename(split_fn))
-            split_audio = audio[i * 1000 : (i + sec_per_split) * 1000]
+            split_audio = audio[i * 1000 : int((i + sec_per_split) * 1000)]
             # exclude samples less than 1.0 seconds
             if split_audio.duration_seconds > (sec_per_split - 0.01):
                 split_audio.export(out_file, format="wav")
