@@ -40,8 +40,8 @@ def load_scores(mode: str, score_dir: str) -> dict[str, npt.NDArray[np.float64]]
     """
     cfg = config.ModelConfig()
     score = {}
+    score_file = {}
     if cfg.n_lookahead == 0:
-        score_file = {"SPSI": "", "RTISI": "", "RTPGHI": "", "TOPR": ""}
         score_file["SPSI"] = os.path.join(score_dir, f"{mode}_score_SPSI.txt")
         score_file["RTISI"] = os.path.join(score_dir, f"{mode}_score_RTISI.txt")
         score_file["RTPGHI"] = os.path.join(score_dir, f"{mode}_score_RTPGHI.txt")
@@ -53,7 +53,6 @@ def load_scores(mode: str, score_dir: str) -> dict[str, npt.NDArray[np.float64]]
         with open(score_file["RTPGHI"], mode="r", encoding="utf-8") as file_hander:
             score["RTPGHI"] = np.array([float(line.strip()) for line in file_hander])
     else:
-        score_file = {"SPSI": "", "RTISI": "", "RTPGHI": "", "TOPR": ""}
         score_file["RTISI"] = os.path.join(score_dir, f"{mode}_score_RTISI_LA.txt")
         score_file["PGHI"] = os.path.join(score_dir, f"{mode}_score_PGHI.txt")
         score_file["TOPR"] = os.path.join(score_dir, f"{mode}_score_TOPR_offline.txt")
