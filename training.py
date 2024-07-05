@@ -23,16 +23,10 @@ SOFTWARE.
 """
 
 import os
-from dataclasses import dataclass
 
-import numpy as np
-import numpy.typing as npt
 import torch
 from progressbar import progressbar as prg
-from timm.scheduler import CosineLRScheduler
 from torch import nn
-from torch.optim.optimizer import Optimizer
-from torch.utils.data import DataLoader
 from torchinfo import summary
 
 import config
@@ -43,17 +37,6 @@ from factory import (
     get_optimizer,
 )
 from model import TOPRNet
-
-
-@dataclass
-class TrainingModules:
-    """Training Modules."""
-
-    dataloader: DataLoader[tuple[npt.NDArray[np.float32], npt.NDArray[np.float32]]]
-    model: TOPRNet
-    loss_func: CustomLoss
-    optimizer: Optimizer
-    lr_scheduler: CosineLRScheduler | None
 
 
 def print_config() -> None:
@@ -70,44 +53,25 @@ def print_config() -> None:
         print(cfg)
 
 
-def get_training_modules() -> TrainingModules:
-    """Instantiate modules for training.
+def training_loop(mode: str) -> TOPRNet:
+    """Perform training loop.
 
     Args:
-       None.
+        mode (str): string to specfiy training mode (BPD or FPD).
 
     Returns:
-       modules (TrainingModules): modules required for training.
+        model (TOPRNet): trained neural network.
     """
     cfg = config.TrainingConfig()
     dataloader = get_dataloader()
     model = TOPRNet().cuda()
     loss_func = CustomLoss(model)
     optimizer = get_optimizer(model)
+    lr_scheduler = get_optimizer(model)
     lr_scheduler = None
     if cfg.use_scheduler:
         lr_scheduler = get_lr_scheduler(optimizer)
-    modules = TrainingModules(dataloader, model, loss_func, optimizer, lr_scheduler)
     summary(model)
-    return modules
-
-
-def training_loop(modules: TrainingModules, mode: str) -> None:
-    """Perform training loop.
-
-    Args:
-        modules (TrainingModules): modules required for training.
-        mode (str): string to specfiy training mode (BPD or FPD).
-
-    Returns:
-       None.
-    """
-    cfg = config.TrainingConfig()
-    dataloader = modules.dataloader
-    model = modules.model
-    loss_func = modules.loss_func
-    optimizer = modules.optimizer
-    lr_scheduler = modules.lr_scheduler
     model.train()
     n_epoch = cfg.n_epoch + 1
     for epoch in prg(
@@ -128,19 +92,20 @@ def training_loop(modules: TrainingModules, mode: str) -> None:
         if epoch == 1 or epoch % cfg.report_interval == 0:
             print(f"\nEpoch {epoch}: loss = {epoch_loss:.12f} ")
 
+    return model
 
-def save_checkpoint(modules: TrainingModules, mode: str) -> None:
+
+def save_checkpoint(model: TOPRNet, mode: str) -> None:
     """Save checkpoint.
 
     Args:
-        modules (TrainingModules): modules required for training.
+        model (TOPRNet): trained neural network.
         mode (str): string to specfiy training mode (BPD or FPD).
 
     Returns:
        None.
     """
     path_cfg = config.PathConfig()
-    model = modules.model
     model_dir = os.path.join(path_cfg.root_dir, "model")
     os.makedirs(model_dir, exist_ok=True)
     if mode == "bpd":
@@ -152,13 +117,11 @@ def save_checkpoint(modules: TrainingModules, mode: str) -> None:
 
 def main() -> None:
     """Perform model training."""
-    modules = get_training_modules()
-    training_loop(modules, "bpd")
-    save_checkpoint(modules, "bpd")
+    model = training_loop("bpd")
+    save_checkpoint(model, "bpd")
 
-    modules = get_training_modules()
-    training_loop(modules, "fpd")
-    save_checkpoint(modules, "fpd")
+    model = training_loop("fpd")
+    save_checkpoint(model, "fpd")
 
 
 if __name__ == "__main__":
