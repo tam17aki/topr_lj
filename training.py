@@ -25,9 +25,9 @@ SOFTWARE.
 import os
 
 import torch
-from progressbar import progressbar as prg
 from torch import nn
 from torchinfo import summary
+from tqdm import tqdm
 
 import config
 from dataset import get_dataloader
@@ -73,8 +73,12 @@ def training_loop(mode: str) -> TOPRNet:
     summary(model)
     model.train()
     n_epoch = cfg.n_epoch + 1
-    for epoch in prg(
-        range(1, n_epoch), prefix="Model training: ", suffix=" ", redirect_stdout=False
+    for epoch in tqdm(
+        range(1, n_epoch),
+        desc="Model training",
+        bar_format="{desc}: {percentage:3.0f}% ({n_fmt} of {total_fmt}) |{bar}|"
+        " Elapsed Time: {elapsed} ETA: {remaining} ",
+        ascii=" #",
     ):
         epoch_loss = 0.0
         for batch in dataloader:
