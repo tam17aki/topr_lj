@@ -26,43 +26,47 @@ import os
 
 import matplotlib.pyplot as plt
 import numpy as np
-from hydra import compose, initialize
-from omegaconf import DictConfig
+import numpy.typing as npt
+
+import config
 
 
-def main(cfg: DictConfig):
+def load_scores(mode: str, score_dir: str) -> dict[str, npt.NDArray[np.float64]]:
+    """Load objective scores.
+
+    Args:
+        mode (str): mode.
+        score_dir (str): score directory.
+    """
+    cfg = config.ModelConfig()
+    score = {}
+    score_file = {"RPU": "", "wRPU": "", "TOPR": ""}
+    score_file["RPU"] = os.path.join(score_dir, f"{mode}_score_RPU.txt")
+    score_file["wRPU"] = os.path.join(score_dir, f"{mode}_score_wRPU.txt")
+    if cfg.n_lookahead == 0:
+        score_file["TOPR"] = os.path.join(score_dir, f"{mode}_score_TOPR_online.txt")
+    else:
+        score_file["TOPR"] = os.path.join(score_dir, f"{mode}_score_TOPR_offline.txt")
+    with open(score_file["RPU"], mode="r", encoding="utf-8") as file_hander:
+        score["RPU"] = np.array([float(line.strip()) for line in file_hander])
+    with open(score_file["wRPU"], mode="r", encoding="utf-8") as file_hander:
+        score["wRPU"] = np.array([float(line.strip()) for line in file_hander])
+    with open(score_file["TOPR"], mode="r", encoding="utf-8") as file_hander:
+        score["TOPR"] = np.array([float(line.strip()) for line in file_hander])
+
+    return score
+
+
+def main():
     """Plot boxplot of scores."""
-    score_dir = os.path.join(cfg.TOPR.root_dir, cfg.TOPR.score_dir)
-    score_file = {"RPU": None, "wRPU": None, "TOPR": None}
-    score = {"RPU": None, "wRPU": None, "TOPR": None}
-    fig_dir = os.path.join(cfg.TOPR.root_dir, cfg.TOPR.fig_dir)
+    path_cfg = config.PathConfig()
+    model_cfg = config.ModelConfig()
+    score_dir = os.path.join(path_cfg.root_dir, "score")
+    fig_dir = os.path.join(path_cfg.root_dir, "fig")
     os.makedirs(fig_dir, exist_ok=True)
     fig = plt.figure(figsize=(12, 4))
-
     for i, mode in enumerate(("stoi", "pesq", "lsc")):
-        if cfg.model.n_lookahead == 0:
-            score_file["RPU"] = os.path.join(score_dir, f"{mode}_score_RPU_online.txt")
-            score_file["wRPU"] = os.path.join(
-                score_dir, f"{mode}_score_wRPU_online.txt"
-            )
-            score_file["TOPR"] = os.path.join(
-                score_dir, f"{mode}_score_TOPR_online.txt"
-            )
-        else:
-            score_file["RPU"] = os.path.join(score_dir, f"{mode}_score_RPU_offline.txt")
-            score_file["wRPU"] = os.path.join(
-                score_dir, f"{mode}_score_wRPU_offline.txt"
-            )
-            score_file["TOPR"] = os.path.join(
-                score_dir, f"{mode}_score_TOPR_offline.txt"
-            )
-        with open(score_file["RPU"], mode="r", encoding="utf-8") as file_hander:
-            score["RPU"] = np.array([float(line.strip()) for line in file_hander])
-        with open(score_file["wRPU"], mode="r", encoding="utf-8") as file_hander:
-            score["wRPU"] = np.array([float(line.strip()) for line in file_hander])
-        with open(score_file["TOPR"], mode="r", encoding="utf-8") as file_hander:
-            score["TOPR"] = np.array([float(line.strip()) for line in file_hander])
-
+        score = load_scores(mode, score_dir)
         axes = fig.add_subplot(1, 3, i + 1)
         axes.boxplot(
             np.concatenate(
@@ -89,7 +93,7 @@ def main(cfg: DictConfig):
         else:
             axes.set_title(mode.upper(), fontsize=16)
     fig.tight_layout()
-    if cfg.model.n_lookahead == 0:
+    if model_cfg.n_lookahead == 0:
         plt.savefig(os.path.join(fig_dir, "score_online_RPU.png"))
     else:
         plt.savefig(os.path.join(fig_dir, "score_offline_RPU.png"))
@@ -97,6 +101,4 @@ def main(cfg: DictConfig):
 
 
 if __name__ == "__main__":
-    with initialize(version_base=None, config_path="."):
-        config = compose(config_name="config")
-    main(config)
+    main()
