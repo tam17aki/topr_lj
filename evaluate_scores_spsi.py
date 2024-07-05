@@ -142,7 +142,6 @@ def reconst_waveform(wav_list: list[str]) -> None:
     """Reconstruct audio waveform only from the magnitude spectrum.
 
     Args:
-        cfg (DictConfig): configuration.
         wav_list (list): list of path to wav file.
 
     Returns:
