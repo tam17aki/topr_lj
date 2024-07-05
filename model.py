@@ -73,7 +73,7 @@ class FreqConv(nn.Module):
         Returns:
             outputs (Tensor): T-F features. [B, C_out, K]
         """
-        outputs = self.freq_conv(inputs)
+        outputs: torch.Tensor = self.freq_conv(inputs)
         return outputs
 
 
@@ -101,7 +101,9 @@ class FreqGatedConv(nn.Module):
         Returns:
             outputs (Tensor): T-F features. [B, C, K]
         """
-        outputs = self.freq_conv1(inputs) * self.gate(self.freq_conv2(inputs))
+        outputs: torch.Tensor = self.freq_conv1(inputs) * self.gate(
+            self.freq_conv2(inputs)
+        )
         return outputs
 
 
@@ -132,7 +134,7 @@ class ResidualBlock(nn.Module):
             outputs (Tensor): T-F features. [B, C, K]
         """
         hidden = self.freq_gated1(inputs)
-        outputs = inputs + self.freq_gated2(hidden)
+        outputs: torch.Tensor = inputs + self.freq_gated2(hidden)
         return outputs
 
 
@@ -165,5 +167,5 @@ class TOPRNet(nn.Module):
         Returns:
             outputs (Tensor): BPD or FPD. [B, 1, K]
         """
-        outputs = self.net(inputs)
+        outputs: torch.Tensor = self.net(inputs)
         return outputs
