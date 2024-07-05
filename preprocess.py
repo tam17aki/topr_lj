@@ -47,19 +47,19 @@ def make_filelist() -> None:
     wav_list = random.sample(wav_list, len(wav_list))
     n_dev = preproc_cfg.n_dev
     n_eval = preproc_cfg.n_eval
-    list_dir = os.path.join(path_cfg.root_dir, path_cfg.list_dir)
+    list_dir = os.path.join(path_cfg.root_dir, "list")
     os.makedirs(list_dir, exist_ok=True)
 
     for phase in ("train", "dev", "eval"):
         if phase == "train":
             file_list = wav_list[n_dev + n_eval :]
-            file_name = os.path.join(path_cfg.root_dir, path_cfg.list_dir, "train.list")
+            file_name = os.path.join(path_cfg.root_dir, "list", "train.list")
         elif phase == "dev":
             file_list = wav_list[:n_dev]
-            file_name = os.path.join(path_cfg.root_dir, path_cfg.list_dir, "dev.list")
+            file_name = os.path.join(path_cfg.root_dir, "list", "dev.list")
         else:
             file_list = wav_list[n_dev : n_dev + n_eval]
-            file_name = os.path.join(path_cfg.root_dir, path_cfg.list_dir, "eval.list")
+            file_name = os.path.join(path_cfg.root_dir, "list", "eval.list")
 
         with open(file_name, "w", encoding="utf-8") as file_handler:
             for wav_file in file_list:
@@ -74,7 +74,7 @@ def split_utterance() -> None:
     os.makedirs(out_dir, exist_ok=True)
 
     with open(
-        os.path.join(path_cfg.root_dir, path_cfg.list_dir, "train.list"),
+        os.path.join(path_cfg.root_dir, "list", "train.list"),
         "r",
         encoding="utf-8",
     ) as file_handler:
@@ -154,7 +154,7 @@ def extract_feature(phase: str) -> None:
         feat_dir = os.path.join(path_cfg.root_dir, path_cfg.feat_dir, "train")
     elif phase == "dev":
         with open(
-            os.path.join(path_cfg.root_dir, path_cfg.list_dir, "dev.list"),
+            os.path.join(path_cfg.root_dir, "list", "dev.list"),
             "r",
             encoding="utf-8",
         ) as file_handler:
@@ -162,7 +162,7 @@ def extract_feature(phase: str) -> None:
         feat_dir = os.path.join(path_cfg.root_dir, path_cfg.feat_dir, "dev")
     else:
         with open(
-            os.path.join(path_cfg.root_dir, path_cfg.list_dir, "eval.list"),
+            os.path.join(path_cfg.root_dir, "list", "eval.list"),
             "r",
             encoding="utf-8",
         ) as file_handler:

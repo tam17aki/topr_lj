@@ -22,7 +22,6 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 """
 
-import glob
 import os
 from concurrent.futures import ProcessPoolExecutor
 from typing import TypedDict
@@ -65,7 +64,7 @@ def load_checkpoint() -> tuple[TOPRNet, TOPRNet]:
         model_fpd (nn.Module): DNNs to estimate FPD.
     """
     cfg = config.PathConfig()
-    model_dir = os.path.join(cfg.root_dir, cfg.model_dir)
+    model_dir = os.path.join(cfg.root_dir, "model")
     model_bpd = TOPRNet().cuda()
     model_file = os.path.join(model_dir, cfg.model_file + ".bpd.pth")
     checkpoint = torch.load(model_file)
@@ -501,6 +500,29 @@ def aggregate_scores(score_dict: dict[str, list[float]], score_dir: str) -> None
         )
 
 
+def load_logmag() -> list[str]:
+    """Load file paths for log-magnitude spectrogram.
+
+    Args:
+        None.
+
+    Returns:
+        logmag_list (list): list of file path for log-magnitude spectrogram.
+    """
+    cfg = config.PathConfig()
+    feat_dir = os.path.join(cfg.root_dir, cfg.feat_dir, "eval")
+    logmag_list = []
+    with open(
+        os.path.join(cfg.root_dir, "list", "eval.list"), "r", encoding="utf-8"
+    ) as file_handler:
+        wav_list = file_handler.read().splitlines()
+    for wav_name in wav_list:
+        basename, _ = os.path.splitext(os.path.basename(wav_name))
+        logmag_list.append(os.path.join(feat_dir, basename + "-feats_logmag.npy"))
+    logmag_list.sort()
+    return logmag_list
+
+
 def main() -> None:
     """Perform evaluation."""
     # setup directory
@@ -517,10 +539,8 @@ def main() -> None:
     model_bpd.eval()
     model_fpd.eval()
 
-    # load log-magnitude spectra
-    feat_dir = os.path.join(cfg.root_dir, cfg.feat_dir, "eval")
-    logmag_list = glob.glob(feat_dir + "/*-feats_logmag.npy")
-    logmag_list.sort()
+    # load list of file paths for log-magnitude spectrogram.
+    logmag_list = load_logmag()
 
     # reconstruct phase and waveform
     reconst_waveform((model_bpd, model_fpd), logmag_list)
