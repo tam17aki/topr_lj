@@ -174,7 +174,7 @@ def compute_stoi(basename: str) -> float:
         eval_wav = eval_wav[: reference.size]
     else:
         reference = reference[: eval_wav.size]
-    return stoi(reference, eval_wav, rate, extended=eval_cfg.stoi_extended)
+    return float(stoi(reference, eval_wav, rate, extended=eval_cfg.stoi_extended))
 
 
 def compute_lsc(basename: str) -> np.float64:
@@ -211,7 +211,9 @@ def compute_lsc(basename: str) -> np.float64:
     return lsc
 
 
-def bpd2tpd(bpd: npt.NDArray[np.float32], win_len: int, hop_len: int, n_frames: int):
+def bpd2tpd(
+    bpd: npt.NDArray[np.float32], win_len: int, hop_len: int, n_frames: int
+) -> npt.NDArray[np.float32]:
     """Convert BPD to TPD.
 
     Args:
@@ -274,13 +276,13 @@ def get_band_coef(matrix: npt.NDArray[np.float32]) -> npt.NDArray[np.float32]:
     upper = np.concatenate((np.array([0]), upper))
     lower = np.diag(matrix, -1)
     lower = np.concatenate((lower, np.array([0])))
-    band_elem = np.concatenate(
+    band_elem: npt.NDArray[np.float32] = np.concatenate(
         (upper.reshape(1, -1), np.diag(matrix).reshape(1, -1), lower.reshape(1, -1))
     )
     return band_elem
 
 
-def wrap_phase(phase):
+def wrap_phase(phase: npt.NDArray[np.float32]) -> npt.NDArray[np.float32]:
     """Compute wrapped phase.
 
     Args:

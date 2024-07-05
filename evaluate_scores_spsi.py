@@ -103,7 +103,7 @@ def compute_stoi(wav_path: str) -> float:
         eval_wav = eval_wav[: reference.size]
     else:
         reference = reference[: eval_wav.size]
-    return stoi(reference, eval_wav, rate, extended=cfg.stoi_extended)
+    return float(stoi(reference, eval_wav, rate, extended=cfg.stoi_extended))
 
 
 def compute_lsc(wav_path: str) -> np.float64:

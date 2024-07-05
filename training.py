@@ -67,7 +67,6 @@ def training_loop(mode: str) -> TOPRNet:
     model = TOPRNet().cuda()
     loss_func = CustomLoss(model)
     optimizer = get_optimizer(model)
-    lr_scheduler = get_optimizer(model)
     lr_scheduler = None
     if cfg.use_scheduler:
         lr_scheduler = get_lr_scheduler(optimizer)

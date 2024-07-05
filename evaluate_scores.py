@@ -145,7 +145,7 @@ def compute_stoi(basename: str) -> float:
         eval_wav = eval_wav[: reference.size]
     else:
         reference = reference[: eval_wav.size]
-    return stoi(reference, eval_wav, rate, extended=eval_cfg.stoi_extended)
+    return float(stoi(reference, eval_wav, rate, extended=eval_cfg.stoi_extended))
 
 
 def compute_lsc(basename: str) -> np.float64:
@@ -226,6 +226,14 @@ def compute_1st_stage(
     return tpd, fpd
 
 
+def solve_reconst_phase(
+    coef: npt.NDArray[np.float32], rhs: npt.NDArray[np.float32]
+) -> npt.NDArray[np.float32]:
+    """Solve a system of linear equations to reconst phase spectrum."""
+    phase: npt.NDArray[np.float32] = np.angle(spsolve(coef, rhs))
+    return phase
+
+
 def compute_2nd_stage(
     phase_prev: npt.NDArray[np.float32],
     pd_tuple: tuple[npt.NDArray[np.float32], npt.NDArray[np.float32]],
@@ -270,7 +278,7 @@ def compute_2nd_stage(
     )  # Eqs. (44) and (45)
     coef = lambda_mat + d_mat.T.tocsr() @ gamma_mat @ d_mat
     rhs = lambda_vec * mag_cur * np.exp(1j * (phase_prev + tpd))
-    return np.angle(spsolve(coef, rhs))
+    return solve_reconst_phase(coef, rhs)
 
 
 def reconst_phase(
