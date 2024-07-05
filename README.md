@@ -34,7 +34,7 @@ Mainly, we will use the following scripts:
 
 | Name               | Functionality                                        |
 |--------------------|------------------------------------------------------|
-| config.yaml        | Configuration file in YAML format                    |
+| config.py          | Configuration                                        |
 | preprocess.py      | Performs pre-processing including feature extraction |
 | dataset.py         | Builds the dataset and dataloader                    |
 | model.py           | Defines the network architecture                     |
@@ -46,7 +46,7 @@ Mainly, we will use the following scripts:
 
 1. Prepare the LJ speech dataset. Put wave files in "/root_dir/data_dir/orig".
 
-2. Modify `config.yaml` according to your environment. It contains settings for experimental conditions. For immediate use, you can edit mainly the directory paths according to your environment.
+2. Modify `config.py` according to your environment. It contains settings for experimental conditions. For immediate use, you can edit mainly the directory paths according to your environment.
 
 3. Run `preprocess.py`. It performs preprocessing steps.
 
