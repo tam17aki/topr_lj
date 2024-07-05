@@ -29,9 +29,9 @@ import numpy as np
 import soundfile as sf
 from oct2py import octave
 from pesq import pesq
-from progressbar import progressbar as prg
 from pystoi import stoi
 from scipy import signal
+from tqdm import tqdm
 
 import config
 
@@ -84,10 +84,10 @@ def compute_pesq(wav_path: str) -> float:
     eval_wav = librosa.resample(eval_wav, orig_sr=rate, target_sr=16000)
     reference, rate = sf.read(wav_path)
     reference = librosa.resample(reference, orig_sr=rate, target_sr=16000)
-    if len(eval_wav) > len(reference):
-        eval_wav = eval_wav[: len(reference)]
+    if eval_wav.size > reference.size:
+        eval_wav = eval_wav[: reference.size]
     else:
-        reference = reference[: len(eval_wav)]
+        reference = reference[: eval_wav.size]
     return pesq(16000, reference, eval_wav)
 
 
@@ -105,10 +105,10 @@ def compute_stoi(wav_path: str) -> float:
     eval_wav = librosa.resample(eval_wav, orig_sr=rate, target_sr=16000)
     reference, rate = sf.read(wav_path)
     reference = librosa.resample(reference, orig_sr=rate, target_sr=16000)
-    if len(eval_wav) > len(reference):
-        eval_wav = eval_wav[: len(reference)]
+    if eval_wav.size > reference.size:
+        eval_wav = eval_wav[: reference.size]
     else:
-        reference = reference[: len(eval_wav)]
+        reference = reference[: eval_wav.size]
     return stoi(reference, eval_wav, rate, extended=cfg.stoi_extended)
 
 
@@ -126,10 +126,10 @@ def compute_lsc(wav_path: str) -> np.float64:
     eval_wav = librosa.resample(eval_wav, orig_sr=rate, target_sr=16000)
     reference, rate = sf.read(wav_path)
     reference = librosa.resample(reference, orig_sr=rate, target_sr=16000)
-    if len(eval_wav) > len(reference):
-        eval_wav = eval_wav[: len(reference)]
+    if eval_wav.size > reference.size:
+        eval_wav = eval_wav[: reference.size]
     else:
-        reference = reference[: len(eval_wav)]
+        reference = reference[: eval_wav.size]
     stfft = signal.ShortTimeFFT(
         win=signal.get_window(cfg.window, cfg.win_length),
         hop=cfg.hop_length,
@@ -155,8 +155,12 @@ def reconst_waveform(wav_list: list[str]) -> None:
     """
     model_cfg = config.ModelConfig()
     feat_cfg = config.FeatureConfig()
-    for wav_path in prg(
-        wav_list, prefix="Reconstruct waveform: ", suffix=" ", redirect_stdout=False
+    for wav_path in tqdm(
+        wav_list,
+        desc="Reconstruct waveform",
+        bar_format="{desc}: {percentage:3.0f}% ({n_fmt} of {total_fmt}) |{bar}|"
+        " Elapsed Time: {elapsed} ETA: {remaining} ",
+        ascii=" #",
     ):
         audio, rate = sf.read(wav_path)
         stfft = signal.ShortTimeFFT(
@@ -206,8 +210,12 @@ def compute_obj_scores(wav_list: list[str]) -> dict[str, list[float]]:
         score_dict (dict): dictionary of objective score lists.
     """
     score_dict = {"pesq": [], "stoi": [], "lsc": []}
-    for wav_path in prg(
-        wav_list, prefix="Compute objective scores: ", suffix=" ", redirect_stdout=False
+    for wav_path in tqdm(
+        wav_list,
+        "Compute objective scores",
+        bar_format="{desc}: {percentage:3.0f}% ({n_fmt} of {total_fmt}) |{bar}|"
+        " Elapsed Time: {elapsed} ETA: {remaining} ",
+        ascii=" #",
     ):
         score_dict["pesq"].append(compute_pesq(wav_path))
         score_dict["stoi"].append(compute_stoi(wav_path))

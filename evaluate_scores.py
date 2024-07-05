@@ -31,12 +31,12 @@ import numpy.typing as npt
 import soundfile as sf
 import torch
 from pesq import pesq
-from progressbar import progressbar as prg
 from pystoi import stoi
 from scipy import signal
 from scipy.sparse import csr_array, diags_array
 from scipy.sparse.linalg import spsolve
 from torch.multiprocessing import set_start_method
+from tqdm import tqdm
 
 import config
 from model import TOPRNet
@@ -111,17 +111,21 @@ def compute_pesq(basename: str) -> float:
     """
     cfg = config.PathConfig()
     eval_wav, rate = sf.read(get_wavname(basename))
-    eval_wav = librosa.resample(eval_wav, orig_sr=rate, target_sr=16000)
+    eval_wav: npt.NDArray[np.float64] = librosa.resample(
+        eval_wav, orig_sr=rate, target_sr=16000
+    )
     ref_wavname, _ = os.path.splitext(basename)
     ref_wavname = ref_wavname.split("_")[0][:-6]
     wav_dir = os.path.join(cfg.root_dir, cfg.data_dir, "orig")
     reference, rate = sf.read(os.path.join(wav_dir, ref_wavname + ".wav"))
-    reference = librosa.resample(reference, orig_sr=rate, target_sr=16000)
+    reference: npt.NDArray[np.float64] = librosa.resample(
+        y=reference, orig_sr=rate, target_sr=16000
+    )
     if len(eval_wav) > len(reference):
         eval_wav = eval_wav[: len(reference)]
     else:
         reference = reference[: len(eval_wav)]
-    return pesq(16000, reference, eval_wav)
+    return float(pesq(16000, reference, eval_wav))
 
 
 def compute_stoi(basename: str) -> float:
@@ -140,10 +144,10 @@ def compute_stoi(basename: str) -> float:
     ref_wavname = ref_wavname.split("_")[0][:-6]
     wav_dir = os.path.join(path_cfg.root_dir, path_cfg.data_dir, "orig")
     reference, rate = sf.read(os.path.join(wav_dir, ref_wavname + ".wav"))
-    if len(eval_wav) > len(reference):
-        eval_wav = eval_wav[: len(reference)]
+    if eval_wav.size > reference.size:
+        eval_wav = eval_wav[: reference.size]
     else:
-        reference = reference[: len(eval_wav)]
+        reference = reference[: eval_wav.size]
     return stoi(reference, eval_wav, rate, extended=eval_cfg.stoi_extended)
 
 
@@ -163,10 +167,10 @@ def compute_lsc(basename: str) -> np.float64:
     ref_wavname = ref_wavname.split("_")[0][:-6]
     wav_dir = os.path.join(path_cfg.root_dir, path_cfg.data_dir, "orig")
     reference, rate = sf.read(os.path.join(wav_dir, ref_wavname + ".wav"))
-    if len(eval_wav) > len(reference):
-        eval_wav = eval_wav[: len(reference)]
+    if eval_wav.size > reference.size:
+        eval_wav = eval_wav[: reference.size]
     else:
-        reference = reference[: len(eval_wav)]
+        reference = reference[: eval_wav.size]
     stfft = signal.ShortTimeFFT(
         win=signal.get_window(feat_cfg.window, feat_cfg.win_length),
         hop=feat_cfg.hop_length,
@@ -362,13 +366,17 @@ def reconst_waveform(
             executor.submit(_reconst_waveform, model_tuple, logmag_path)
             for logmag_path in logmag_list
         ]
-        for future in prg(
-            futures, prefix="Reconstruct waveform: ", suffix=" ", redirect_stdout=False
+        for future in tqdm(
+            futures,
+            desc="Reconstruct waveform",
+            bar_format="{desc}: {percentage:3.0f}% ({n_fmt} of {total_fmt}) |{bar}|"
+            " Elapsed Time: {elapsed} ETA: {remaining} ",
+            ascii=" #",
         ):
             future.result()  # return None
 
 
-def compute_obj_scores(logmag_list: list[str]) -> dict[str, list[float]]:
+def compute_obj_scores(logmag_list: list[str]) -> dict[str, list[np.float64 | float]]:
     """Compute objective scores; PESQ, STOI and LSC.
 
     Args:
@@ -377,12 +385,17 @@ def compute_obj_scores(logmag_list: list[str]) -> dict[str, list[float]]:
     Returns:
         score_dict (dict): dictionary of objective score lists.
     """
-    score_dict = {"pesq": [], "stoi": [], "lsc": []}
-    for logmag_path in prg(
+    score_dict: dict[str, list[np.float64 | float]] = {
+        "pesq": [],
+        "stoi": [],
+        "lsc": [],
+    }
+    for logmag_path in tqdm(
         logmag_list,
-        prefix="Compute objective scores: ",
-        suffix=" ",
-        redirect_stdout=False,
+        desc="Compute objective scores",
+        bar_format="{desc}: {percentage:3.0f}% ({n_fmt} of {total_fmt}) |{bar}|"
+        " Elapsed Time: {elapsed} ETA: {remaining} ",
+        ascii=" #",
     ):
         score_dict["pesq"].append(compute_pesq(os.path.basename(logmag_path)))
         score_dict["stoi"].append(compute_stoi(os.path.basename(logmag_path)))
@@ -390,7 +403,9 @@ def compute_obj_scores(logmag_list: list[str]) -> dict[str, list[float]]:
     return score_dict
 
 
-def aggregate_scores(score_dict: dict[str, list[float]], score_dir: str) -> None:
+def aggregate_scores(
+    score_dict: dict[str, list[np.float64 | float]], score_dir: str
+) -> None:
     """Aggregate objective evaluation scores.
 
     Args:
@@ -432,7 +447,7 @@ def load_logmag() -> list[str]:
     """
     cfg = config.PathConfig()
     feat_dir = os.path.join(cfg.root_dir, cfg.feat_dir, "eval")
-    logmag_list = []
+    logmag_list: list[str] = []
     with open(
         os.path.join(cfg.root_dir, "list", "eval.list"), "r", encoding="utf-8"
     ) as file_handler:
@@ -464,7 +479,7 @@ def main() -> None:
     logmag_list = load_logmag()
 
     # reconstruct phase and waveform
-    reconst_waveform((model_bpd, model_fpd), logmag_list)
+    # reconst_waveform((model_bpd, model_fpd), logmag_list)
 
     # compute objective scores
     score_dict = compute_obj_scores(logmag_list)
