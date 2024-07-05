@@ -31,11 +31,7 @@ from tqdm import tqdm
 
 import config
 from dataset import get_dataloader
-from factory import (
-    CustomLoss,
-    get_lr_scheduler,
-    get_optimizer,
-)
+from factory import CustomLoss, get_lr_scheduler, get_optimizer
 from model import TOPRNet
 
 
