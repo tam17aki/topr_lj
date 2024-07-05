@@ -82,7 +82,7 @@ def compute_pesq(wav_path: str) -> float:
         eval_wav = eval_wav[: reference.size]
     else:
         reference = reference[: eval_wav.size]
-    return pesq(16000, reference, eval_wav)
+    return float(pesq(16000, reference, eval_wav))
 
 
 def compute_stoi(wav_path: str) -> float:
@@ -170,7 +170,7 @@ def reconst_waveform(wav_list: list[str]) -> None:
         sf.write(wav_file, audio, cfg.sample_rate)
 
 
-def compute_obj_scores(wav_list: list[str]) -> dict[str, list[float]]:
+def compute_obj_scores(wav_list: list[str]) -> dict[str, list[np.float64 | float]]:
     """Compute objective evaluation scores; PESQ, STOI and LSC.
 
     Args:
@@ -193,7 +193,9 @@ def compute_obj_scores(wav_list: list[str]) -> dict[str, list[float]]:
     return score_dict
 
 
-def aggregate_scores(score_dict: dict[str, list[float]], score_dir: str) -> None:
+def aggregate_scores(
+    score_dict: dict[str, list[np.float64 | float]], score_dir: str
+) -> None:
     """Aggregate objective evaluation scores.
 
     Args:

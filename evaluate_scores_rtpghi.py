@@ -188,7 +188,7 @@ def reconst_waveform(wav_list: list[str]) -> None:
         sf.write(wav_file, audio, rate)
 
 
-def compute_obj_scores(wav_list: list[str]) -> dict[str, list[float]]:
+def compute_obj_scores(wav_list: list[str]) -> dict[str, list[np.float64 | float]]:
     """Compute objective evaluation scores; PESQ, STOI and LSC.
 
     Args:
@@ -211,7 +211,9 @@ def compute_obj_scores(wav_list: list[str]) -> dict[str, list[float]]:
     return score_dict
 
 
-def aggregate_scores(score_dict: dict[str, list[float]], score_dir: str) -> None:
+def aggregate_scores(
+    score_dict: dict[str, list[np.float64 | float]], score_dir: str
+) -> None:
     """Aggregate objective evaluation scores.
 
     Args:
