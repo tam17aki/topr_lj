@@ -31,7 +31,7 @@ import numpy.typing as npt
 import config
 
 
-def load_scores(mode: str, score_dir: str) -> dict[str, npt.NDArray[np.float]]:
+def load_scores(mode: str, score_dir: str) -> dict[str, npt.NDArray[np.float64]]:
     """Load objective scores.
 
     Args:
