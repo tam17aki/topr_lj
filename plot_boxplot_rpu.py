@@ -77,7 +77,7 @@ def main():
                 ),
                 axis=1,
             ),
-            flierprops=dict(marker="+", markeredgecolor="r"),
+            flierprops={"marker": "+", "markeredgecolor": "r"},
             labels=["RPU", "wRPU", "TOPR"],
             widths=(0.5, 0.5, 0.5),
         )
