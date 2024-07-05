@@ -425,10 +425,10 @@ def aggregate_scores(score_dict: dict[str, list[float]], score_dir: str) -> None
 def main() -> None:
     """Perform evaluation."""
     # setup directory
-    path_cfg = config.PathConfig()
+    cfg = config.PathConfig()
     wav_dir = get_wavdir()
     os.makedirs(wav_dir, exist_ok=True)
-    score_dir = os.path.join(path_cfg.root_dir, "score")
+    score_dir = os.path.join(cfg.root_dir, "score")
     os.makedirs(score_dir, exist_ok=True)
 
     # load DNN parameters
@@ -439,7 +439,7 @@ def main() -> None:
     model_fpd.eval()
 
     # load log-magnitude spectra
-    feat_dir = os.path.join(path_cfg.root_dir, path_cfg.feat_dir, "eval")
+    feat_dir = os.path.join(cfg.root_dir, cfg.feat_dir, "eval")
     logmag_list = glob.glob(feat_dir + "/*-feats_logmag.npy")
     logmag_list.sort()
 
