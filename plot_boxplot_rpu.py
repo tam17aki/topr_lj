@@ -40,7 +40,7 @@ def load_scores(mode: str, score_dir: str) -> dict[str, npt.NDArray[np.float64]]
     """
     cfg = config.ModelConfig()
     score = {}
-    score_file = {"RPU": "", "wRPU": "", "TOPR": ""}
+    score_file = {}
     score_file["RPU"] = os.path.join(score_dir, f"{mode}_score_RPU.txt")
     score_file["wRPU"] = os.path.join(score_dir, f"{mode}_score_wRPU.txt")
     if cfg.n_lookahead == 0:
