@@ -113,7 +113,6 @@ def compute_pesq(basename: str) -> float:
     eval_wav, rate = sf.read(get_wavname(basename))
     eval_wav = librosa.resample(eval_wav, orig_sr=rate, target_sr=16000)
     ref_wavname, _ = os.path.splitext(basename)
-    print(ref_wavname)
     ref_wavname = ref_wavname.split("_")[0][:-6]  # remove '_logmag'
     wav_dir = os.path.join(cfg.root_dir, cfg.data_dir, "orig")
     reference, rate = sf.read(os.path.join(wav_dir, ref_wavname + ".wav"))
@@ -226,14 +225,6 @@ def compute_1st_stage(
     return tpd, fpd
 
 
-def solve_reconst_phase(
-    coef: npt.NDArray[np.float32], rhs: npt.NDArray[np.float32]
-) -> npt.NDArray[np.float32]:
-    """Solve a system of linear equations to reconst phase spectrum."""
-    phase: npt.NDArray[np.float32] = np.angle(spsolve(coef, rhs))
-    return phase
-
-
 def compute_2nd_stage(
     phase_prev: npt.NDArray[np.float32],
     pd_tuple: tuple[npt.NDArray[np.float32], npt.NDArray[np.float32]],
@@ -263,7 +254,6 @@ def compute_2nd_stage(
     lambda_vec = (mag_cur * mag_prev) ** cfg.weight_power
     gamma_mat = cfg.weight_gamma * ((mag_cur[1:] * mag_cur[:-1]) ** cfg.weight_power)
     gamma_mat = diags_array(gamma_mat, format="csr")
-    lambda_mat = diags_array(lambda_vec, format="csr")
 
     d_mat = csr_array(
         (
@@ -276,9 +266,10 @@ def compute_2nd_stage(
         shape=(n_fbin - 1, n_fbin),
         dtype=np.complex64,
     )  # Eqs. (44) and (45)
-    coef = lambda_mat + d_mat.T.tocsr() @ gamma_mat @ d_mat
+    coef = diags_array(lambda_vec, format="csr") + d_mat.T.tocsr() @ gamma_mat @ d_mat
     rhs = lambda_vec * mag_cur * np.exp(1j * (phase_prev + tpd))
-    return solve_reconst_phase(coef, rhs)
+    phase: npt.NDArray[np.float32] = np.angle(spsolve(coef, rhs))
+    return phase
 
 
 def reconst_phase(
@@ -484,7 +475,7 @@ def main() -> None:
     logmag_list = load_logmag()
 
     # reconstruct phase and waveform
-    # reconst_waveform((model_bpd, model_fpd), logmag_list)
+    reconst_waveform((model_bpd, model_fpd), logmag_list)
 
     # compute objective scores
     score_dict = compute_obj_scores(logmag_list)
