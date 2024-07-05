@@ -10,7 +10,6 @@ Copyright (C) 2024 Akira Tamamori
 ## Dependencies
 We tested the implemention on Ubuntu 22.04. The verion of Python was `3.10.12`. The following modules are required:
 
-- hydra-core
 - joblib
 - librosa
 - numpy
