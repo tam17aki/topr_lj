@@ -38,6 +38,9 @@ def get_optimizer(model: TOPRNet) -> Optimizer:
 
     Args:
         model (nn.Module): network parameters.
+
+    Returns:
+        optimizer (Optimizer): RAdam or AdamW.
     """
     cfg = config.OptimizerConfig()
     if cfg.name == "RAdam":
@@ -55,6 +58,9 @@ def get_lr_scheduler(optimizer: Optimizer) -> CosineLRScheduler:
 
     Args:
         optimizer (Optimizer): Wrapped optimizer.
+
+    Returns:
+        lr_scheduler (CosineLRScheduler): cosine scheduler with warmup.
     """
     cfg = config.SchedulerConfig()
     lr_scheduler = CosineLRScheduler(
