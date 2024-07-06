@@ -462,7 +462,7 @@ def compute_obj_scores(logmag_list: list[str]) -> dict[str, list[np.float64 | fl
     }
     for logmag_path in tqdm(
         logmag_list,
-        desc="Compute objective scores: ",
+        desc="Compute objective scores",
         bar_format="{desc}: {percentage:3.0f}% ({n_fmt} of {total_fmt}) |{bar}|"
         " Elapsed Time: {elapsed} ETA: {remaining} ",
         ascii=" #",
