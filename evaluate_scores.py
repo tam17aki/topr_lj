@@ -296,9 +296,7 @@ def reconst_phase(
     """
     cfg = config.ModelConfig()
     logmag = np.pad(logmag, ((cfg.n_lookback, cfg.n_lookahead), (0, 0)), "constant")
-    logmag_tensor = (
-        torch.from_numpy(logmag).float().unsqueeze(0).cuda()
-    )  # [1, T+L+1, K]
+    logmag_tensor = torch.tensor(logmag).float().unsqueeze(0).cuda()  # [1, T+L+1, K]
     n_frame, n_fbin = magnitude.shape
     n_lookback = cfg.n_lookback
     n_lookahead = cfg.n_lookahead
