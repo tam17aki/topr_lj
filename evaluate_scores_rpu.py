@@ -395,7 +395,7 @@ def _reconst_waveform(model_tuple: tuple[TOPRNet, TOPRNet], logmag_path: str) ->
     logmag = np.pad(
         logmag, ((model_cfg.n_lookback, model_cfg.n_lookahead), (0, 0)), "constant"
     )
-    logmag = torch.from_numpy(logmag).float().unsqueeze(0).cuda()  # [1, T+L+1, K]
+    logmag = torch.tensor(logmag).float().unsqueeze(0).cuda()  # [1, T+L+1, K]
     tpd, fpd = compute_1st_stage(model_tuple, logmag)
 
     # reconstruct phase spectra by using instantaneous frequency (= TPD) and
