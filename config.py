@@ -42,10 +42,10 @@ class PathConfig:
 class PreProcessConfig:
     """Dataclass for preprocess."""
 
-    n_dev: int = 300
-    n_eval: int = 300
+    n_dev: int = 300  # number of samples for development data
+    n_eval: int = 300  # number of samples for evaluation data
     n_jobs: int = 6
-    sec_per_split: float = 1.0
+    sec_per_split: float = 1.0  # seconds per split of a audio clip
 
 
 @dataclass(frozen=True)
