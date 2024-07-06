@@ -63,8 +63,8 @@ class FeatureConfig:
 class ModelConfig:
     """Dataclass for model definition."""
 
-    n_lookahead: int = 0
-    n_lookback: int = 3
+    n_lookahead: int = 0  # number of lookahead frames
+    n_lookback: int = 3  # number of lookback frames
     kernel_size: int = 5
     n_channels: int = 64
 
