@@ -30,9 +30,9 @@ from concurrent.futures import ProcessPoolExecutor
 
 import numpy as np
 import soundfile as sf
-from progressbar import progressbar as prg
 from pydub import AudioSegment
 from scipy import signal
+from tqdm import tqdm
 
 import config
 
@@ -73,16 +73,18 @@ def split_utterance() -> None:
     os.makedirs(out_dir, exist_ok=True)
 
     with open(
-        os.path.join(path_cfg.root_dir, "list", "train.list"),
-        "r",
-        encoding="utf-8",
+        os.path.join(path_cfg.root_dir, "list", "train.list"), "r", encoding="utf-8"
     ) as file_handler:
         wav_list = file_handler.read().splitlines()
     wav_list.sort()
 
     sec_per_split = preproc_cfg.sec_per_split
-    for wav_name in prg(
-        wav_list, prefix="Split utterances: ", suffix=" ", redirect_stdout=False
+    for wav_name in tqdm(
+        wav_list,
+        desk="Split utterances",
+        bar_format="{desc}: {percentage:3.0f}% ({n_fmt} of {total_fmt}) |{bar}|"
+        " Elapsed Time: {elapsed} ETA: {remaining} ",
+        ascii=" #",
     ):
         audio = AudioSegment.from_wav(wav_name)
         duration = math.floor(audio.duration_seconds)
@@ -153,17 +155,13 @@ def extract_feature(phase: str) -> None:
         feat_dir = os.path.join(path_cfg.root_dir, path_cfg.feat_dir, "train")
     elif phase == "dev":
         with open(
-            os.path.join(path_cfg.root_dir, "list", "dev.list"),
-            "r",
-            encoding="utf-8",
+            os.path.join(path_cfg.root_dir, "list", "dev.list"), "r", encoding="utf-8"
         ) as file_handler:
             wav_list = file_handler.read().splitlines()
         feat_dir = os.path.join(path_cfg.root_dir, path_cfg.feat_dir, "dev")
     else:
         with open(
-            os.path.join(path_cfg.root_dir, "list", "eval.list"),
-            "r",
-            encoding="utf-8",
+            os.path.join(path_cfg.root_dir, "list", "eval.list"), "r", encoding="utf-8"
         ) as file_handler:
             wav_list = file_handler.read().splitlines()
         feat_dir = os.path.join(path_cfg.root_dir, path_cfg.feat_dir, "eval")
@@ -175,13 +173,14 @@ def extract_feature(phase: str) -> None:
             executor.submit(_extract_feature, wav_file, feat_dir)
             for wav_file in wav_list
         ]
-        for future in prg(
+        for future in tqdm(
             futures,
-            prefix="Extract acoustic features: ",
-            suffix=" ",
-            redirect_stdout=False,
+            desc="Extract acoustic features",
+            bar_format="{desc}: {percentage:3.0f}% ({n_fmt} of {total_fmt}) |{bar}|"
+            " Elapsed Time: {elapsed} ETA: {remaining} ",
+            ascii=" #",
         ):
-            future.result()  # return None
+            future.result()
 
 
 def main() -> None:
