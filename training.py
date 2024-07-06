@@ -35,20 +35,6 @@ from factory import CustomLoss, get_lr_scheduler, get_optimizer
 from model import TOPRNet
 
 
-def print_config() -> None:
-    """Print all configurations for training."""
-    for cfg in (
-        config.PathConfig(),
-        config.PreProcessConfig(),
-        config.FeatureConfig(),
-        config.ModelConfig(),
-        config.OptimizerConfig(),
-        config.SchedulerConfig(),
-        config.TrainingConfig(),
-    ):
-        print(cfg)
-
-
 def training_loop(mode: str) -> TOPRNet:
     """Perform training loop.
 
@@ -116,6 +102,17 @@ def save_checkpoint(model: TOPRNet, mode: str) -> None:
 
 def main() -> None:
     """Perform model training."""
+    for cfg in (
+        config.PathConfig(),
+        config.PreProcessConfig(),
+        config.FeatureConfig(),
+        config.ModelConfig(),
+        config.OptimizerConfig(),
+        config.SchedulerConfig(),
+        config.TrainingConfig(),
+    ):
+        print(cfg)
+
     model = training_loop("bpd")
     save_checkpoint(model, "bpd")
 
@@ -124,5 +121,4 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    print_config()
     main()
