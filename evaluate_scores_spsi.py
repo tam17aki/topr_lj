@@ -241,9 +241,7 @@ def main() -> None:
 
     # reconstruct phase and waveform
     with open(
-        os.path.join(cfg.root_dir, "list", "eval.list"),
-        "r",
-        encoding="utf-8",
+        os.path.join(cfg.root_dir, "list", "eval.list"), "r", encoding="utf-8"
     ) as file_handler:
         wav_list = file_handler.read().splitlines()
     reconst_waveform(wav_list)
