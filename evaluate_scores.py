@@ -137,7 +137,7 @@ def compute_stoi(basename: str) -> float:
     eval_cfg = config.EvalConfig()
     eval_wav, _ = sf.read(get_wavname(basename))
     ref_wavname, _ = os.path.splitext(basename)
-    ref_wavname = ref_wavname.split("_")[0][:-6]
+    ref_wavname = ref_wavname.split("_")[0][:-6]  # remove '_logmag'
     wav_dir = os.path.join(path_cfg.root_dir, path_cfg.data_dir, "orig")
     reference, rate = sf.read(os.path.join(wav_dir, ref_wavname + ".wav"))
     if eval_wav.size > reference.size:
@@ -160,7 +160,7 @@ def compute_lsc(basename: str) -> np.float64:
     feat_cfg = config.FeatureConfig()
     eval_wav, _ = sf.read(get_wavname(basename))
     ref_wavname, _ = os.path.splitext(basename)
-    ref_wavname = ref_wavname.split("_")[0][:-6]
+    ref_wavname = ref_wavname.split("_")[0][:-6]  # remove '_logmag'
     wav_dir = os.path.join(path_cfg.root_dir, path_cfg.data_dir, "orig")
     reference, rate = sf.read(os.path.join(wav_dir, ref_wavname + ".wav"))
     if eval_wav.size > reference.size:
@@ -252,8 +252,7 @@ def compute_2nd_stage(
 
     # weight matrix (diagonal)
     lambda_vec = (mag_cur * mag_prev) ** cfg.weight_power
-    gamma_mat = cfg.weight_gamma * ((mag_cur[1:] * mag_cur[:-1]) ** cfg.weight_power)
-    gamma_mat = diags_array(gamma_mat, format="csr")
+    gamma_vec = cfg.weight_gamma * ((mag_cur[1:] * mag_cur[:-1]) ** cfg.weight_power)
 
     d_mat = csr_array(
         (
@@ -266,9 +265,12 @@ def compute_2nd_stage(
         shape=(n_fbin - 1, n_fbin),
         dtype=np.complex64,
     )  # Eqs. (44) and (45)
-    coef = diags_array(lambda_vec, format="csr") + d_mat.T.tocsr() @ gamma_mat @ d_mat
+    coef = (
+        diags_array(lambda_vec, format="csr")
+        + d_mat.T.tocsr() @ diags_array(gamma_vec, format="csr") @ d_mat
+    )
     rhs = lambda_vec * mag_cur * np.exp(1j * (phase_prev + tpd))
-    phase: npt.NDArray[np.float32] = np.angle(spsolve(coef, rhs))
+    phase = np.angle(spsolve(coef, rhs))
     return phase
 
 
