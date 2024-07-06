@@ -67,7 +67,7 @@ def training_loop(mode: str) -> TOPRNet:
             optimizer.zero_grad(set_to_none=True)
             loss = loss_func.forward(batch, mode)
             epoch_loss += loss.item()
-            loss.backward()  # type: ignore[no-untyped-call]
+            loss.backward()
             if cfg.use_grad_clip:
                 nn.utils.clip_grad_norm_(model.parameters(), cfg.grad_max_norm)
             optimizer.step()
