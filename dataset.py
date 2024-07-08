@@ -129,7 +129,7 @@ def get_dataloader() -> (
         ],
     )
 
-    data_loaders = DataLoader(
+    data_loader = DataLoader(
         TOPRDataset(feat_paths),
         batch_size=train_cfg.n_batch,
         collate_fn=collate_fn_topr,
@@ -138,4 +138,4 @@ def get_dataloader() -> (
         shuffle=True,
         drop_last=True,
     )
-    return data_loaders
+    return data_loader
