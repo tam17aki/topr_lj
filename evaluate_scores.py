@@ -466,8 +466,6 @@ def main() -> None:
 
     # load DNN parameters
     model_bpd, model_fpd = load_checkpoint()
-    model_bpd.cuda()
-    model_fpd.cuda()
     model_bpd.eval()
     model_fpd.eval()
 
